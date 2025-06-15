@@ -303,6 +303,6 @@ gradle-app.setting
 # Java heap dump
 *.hprof
 
-.bin
+bin
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,macos,jetbrains+all,jetbrains,gradle,java,visualstudiocode
