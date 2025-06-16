@@ -1,6 +1,7 @@
 package com.nsmm.esg.auth_service.service;
 
 import com.nsmm.esg.auth_service.repository.PartnerRepository;
+import com.nsmm.esg.auth_service.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,9 +23,7 @@ import java.util.Map;
 public class PartnerAccountService {
 
   private final PartnerRepository partnerRepository;
-
-  // 본사 고정 계정 번호
-  private static final String FIXED_HQ_ACCOUNT_NUMBER = "17250676";
+  private final SecurityUtil securityUtil;
 
   // 한글 → 영문 이니셜 매핑
   private static final Map<String, String> KOREAN_TO_ENGLISH = Map.ofEntries(
@@ -128,24 +127,26 @@ public class PartnerAccountService {
    * 같은 이니셜, 같은 레벨에서 중복되지 않는 순번 반환
    */
   private int getNextSequence(String initials, int level, Long parentId) {
-    // 기존 협력사 수 조회하여 다음 순번 계산
-    String basePattern = String.format("p%d-%s", level, initials);
 
     // 같은 본사, 같은 레벨에서 이 이니셜로 시작하는 협력사 수 조회
     long count;
+    Long currentHqId = getCurrentHeadquartersId();
+
     if (parentId == null) {
       // 1차 협력사의 경우
-      count = partnerRepository.countByHeadquartersIdAndLevel(getDefaultHeadquartersId(), level);
+      count = partnerRepository.countByHeadquartersIdAndLevel(currentHqId, level);
     } else {
-      // 하위 협력사의 경우 - 실제로는 더 정교한 로직 필요
-      count = partnerRepository.countByHeadquartersIdAndLevel(getDefaultHeadquartersId(), level);
+      // 하위 협력사의 경우 - 상위 협력사와 같은 본사, 같은 레벨에서 카운트
+      count = partnerRepository.countByHeadquartersIdAndLevel(currentHqId, level);
     }
 
     int sequence = (int) (count + 1);
 
     // 중복 확인 및 조정
     String candidateId = String.format("p%d-%s%02d", level, initials, sequence);
-    while (partnerRepository.existsByHqAccountNumberAndHierarchicalId(FIXED_HQ_ACCOUNT_NUMBER, candidateId)) {
+    String currentHqAccountNumber = getCurrentHeadquartersAccountNumber();
+
+    while (partnerRepository.existsByHqAccountNumberAndHierarchicalId(currentHqAccountNumber, candidateId)) {
       sequence++;
       candidateId = String.format("p%d-%s%02d", level, initials, sequence);
     }
@@ -155,11 +156,29 @@ public class PartnerAccountService {
   }
 
   /**
-   * 기본 본사 ID 반환 (임시)
-   * 실제로는 컨텍스트에서 가져와야 함
+   * 현재 로그인한 본사 ID 반환
+   * SecurityUtil을 통해 JWT에서 추출
    */
-  private Long getDefaultHeadquartersId() {
-    return 1L; // 현재는 고정값, 추후 개선 필요
+  private Long getCurrentHeadquartersId() {
+    try {
+      return securityUtil.getCurrentHeadquartersId();
+    } catch (Exception e) {
+      log.error("현재 본사 ID를 가져올 수 없습니다: {}", e.getMessage());
+      throw new IllegalStateException("인증된 본사 정보를 찾을 수 없습니다. 다시 로그인해주세요.");
+    }
+  }
+
+  /**
+   * 현재 로그인한 본사의 계정번호 반환
+   * SecurityUtil을 통해 JWT에서 추출
+   */
+  private String getCurrentHeadquartersAccountNumber() {
+    try {
+      return securityUtil.getCurrentAccountNumber();
+    } catch (Exception e) {
+      log.error("현재 본사 계정번호를 가져올 수 없습니다: {}", e.getMessage());
+      throw new IllegalStateException("인증된 본사 계정번호를 찾을 수 없습니다. 다시 로그인해주세요.");
+    }
   }
 
   /**

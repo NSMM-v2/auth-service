@@ -19,16 +19,40 @@ import org.springframework.stereotype.Service;
 public class PartnerTreeService {
 
   /**
-   * 트리 경로 생성
+   * 1차 협력사 트리 경로 생성
+   * 본사 직속 협력사의 트리 경로 생성 (ID가 아직 없는 상태)
+   * 
+   * @param headquartersId 본사 ID
+   * @return 1차 협력사용 트리 경로
+   */
+  public String generateFirstLevelTreePath(Long headquartersId) {
+    return String.format("/hq%d/", headquartersId);
+  }
+
+  /**
+   * 하위 협력사 트리 경로 생성
+   * 상위 협력사 기반으로 하위 트리 경로 생성
+   * 
+   * @param parentPartner 상위 협력사
+   * @return 하위 협력사용 트리 경로
+   */
+  public String generateSubLevelTreePath(Partner parentPartner) {
+    return parentPartner.getTreePath() + "sub/";
+  }
+
+  /**
+   * 트리 경로 생성 (저장 후 실제 ID로 업데이트)
    * 
    * @param partner 협력사 엔티티
    * @return 생성된 트리 경로
    */
   public String generateTreePath(Partner partner) {
     if (partner.getParent() == null) {
-      return String.format("/%d/", partner.getId());
+      // 1차 협력사: /hq{본사ID}/p{협력사ID}/
+      return String.format("/hq%d/p%d/", partner.getHeadquarters().getId(), partner.getId());
     } else {
-      return partner.getParent().getTreePath() + partner.getId() + "/";
+      // 하위 협력사: 상위 경로 + p{협력사ID}/
+      return partner.getParent().getTreePath() + String.format("p%d/", partner.getId());
     }
   }
 

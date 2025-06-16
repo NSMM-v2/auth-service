@@ -22,13 +22,13 @@ public class PartnerCreateResponse {
   @Schema(description = "협력사 ID", example = "1")
   private Long partnerId;
 
-  @Schema(description = "본사 계정번호", example = "17250676")
+  @Schema(description = "본사 계정번호", example = "2412161700")
   private String hqAccountNumber;
 
   @Schema(description = "계층적 아이디", example = "p1-kcs01")
   private String hierarchicalId;
 
-  @Schema(description = "전체 계정번호", example = "17250676-p1-kcs01")
+  @Schema(description = "전체 계정번호", example = "2412161700-p1-kcs01")
   private String fullAccountNumber;
 
   @Schema(description = "회사명", example = "케이씨에스정보통신")

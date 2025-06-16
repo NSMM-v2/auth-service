@@ -12,14 +12,15 @@ import java.time.format.DateTimeFormatter;
 /**
  * 본사 계정번호 생성 서비스
  * 
- * 주요 기능:
- * - 본사 계정번호 자동 생성 (날짜 + 17로 시작하는 순번)
- * - 중복 방지 로직
- * - 형식: YYMMDD + 17XX (2412161700, 2412161701...)
+ * 비즈니스 규칙:
+ * - 본사 계정번호는 일자별로 고유하게 생성
+ * - 형식: YYMMDD + 순번 (총 10자리)
+ * - 보안을 위해 17로 시작하는 순번 사용 (예측 어려움)
+ * - 일일 생성 한도: 100개 (충분한 용량)
  * 
- * 패턴 의미:
- * - YYMMDD: 생성 날짜 (6자리, 20 제거)
- * - 17XX: 17로 시작하는 순번 (1700~1799, 최대 100개/일)
+ * 계정번호 형식:
+ * - YYMMDD: 생성 날짜 (6자리)
+ * - 17XX: 17로 시작하는 순번 (4자리, 1700~1799)
  * 
  * 예시: 2412161700, 2412161701, 2412161702...
  */
@@ -30,10 +31,13 @@ public class HeadquartersAccountService {
 
   private final HeadquartersRepository headquartersRepository;
 
-  // 순번 접두사 (불규칙성을 위한 17 시작)
-  private static final int SEQUENCE_PREFIX = 17;
-  private static final int MIN_SEQUENCE = 1700; // 1700부터 시작
-  private static final int MAX_SEQUENCE = 1799; // 1799까지 (100개/일)
+  // 계정번호 생성 규칙
+  private static final int ACCOUNT_NUMBER_LENGTH = 10; // 계정번호 총 길이
+  private static final int DATE_PART_LENGTH = 6; // 날짜 부분 길이 (YYMMDD)
+  private static final int SEQUENCE_PREFIX = 17; // 순번 접두사 (보안)
+  private static final int MIN_SEQUENCE = 1700; // 최소 순번
+  private static final int MAX_SEQUENCE = 1799; // 최대 순번
+  private static final int DAILY_CAPACITY = MAX_SEQUENCE - MIN_SEQUENCE + 1; // 일일 최대 생성 수
 
   /**
    * 새로운 본사 계정번호 생성
@@ -54,8 +58,7 @@ public class HeadquartersAccountService {
     // 최대 순번 확인
     if (sequence > MAX_SEQUENCE) {
       throw new IllegalStateException(
-          String.format("하루에 생성 가능한 본사 수(%d개)를 초과했습니다.",
-              MAX_SEQUENCE - MIN_SEQUENCE + 1));
+          String.format("일일 본사 생성 한도(%d개)를 초과했습니다.", DAILY_CAPACITY));
     }
 
     String accountNumber = String.format("%s%d", today, sequence);
@@ -65,8 +68,7 @@ public class HeadquartersAccountService {
       sequence++;
       if (sequence > MAX_SEQUENCE) {
         throw new IllegalStateException(
-            String.format("하루에 생성 가능한 본사 수(%d개)를 초과했습니다.",
-                MAX_SEQUENCE - MIN_SEQUENCE + 1));
+            String.format("일일 본사 생성 한도(%d개)를 초과했습니다.", DAILY_CAPACITY));
       }
       accountNumber = String.format("%s%d", today, sequence);
     }
@@ -92,12 +94,17 @@ public class HeadquartersAccountService {
       return false;
     }
 
-    // 10자리 숫자이면서 뒤 4자리가 17로 시작하는지 확인
-    String pattern = "^\\d{6}17\\d{2}$";
+    // 계정번호 길이 검증
+    if (accountNumber.length() != ACCOUNT_NUMBER_LENGTH) {
+      return false;
+    }
+
+    // 형식 검증: 숫자이면서 뒤 4자리가 17로 시작하는지 확인
+    String pattern = String.format("^\\d{%d}%d\\d{2}$", DATE_PART_LENGTH, SEQUENCE_PREFIX);
     boolean matches = accountNumber.matches(pattern);
 
     if (matches) {
-      // 순번이 유효 범위(1700~1799)인지 추가 확인
+      // 순번이 유효 범위인지 추가 확인
       int sequence = extractSequence(accountNumber);
       return sequence >= MIN_SEQUENCE && sequence <= MAX_SEQUENCE;
     }
@@ -114,20 +121,20 @@ public class HeadquartersAccountService {
     }
 
     // 2412161700 → 241216
-    return accountNumber.substring(0, 6);
+    return accountNumber.substring(0, DATE_PART_LENGTH);
   }
 
   /**
    * 계정번호에서 순번 추출
    */
   public int extractSequence(String accountNumber) {
-    if (accountNumber == null || accountNumber.length() != 10) {
+    if (accountNumber == null || accountNumber.length() != ACCOUNT_NUMBER_LENGTH) {
       throw new IllegalArgumentException("잘못된 본사 계정번호 형식: " + accountNumber);
     }
 
     try {
       // 2412161700 → 1700
-      String sequenceStr = accountNumber.substring(6);
+      String sequenceStr = accountNumber.substring(DATE_PART_LENGTH);
       return Integer.parseInt(sequenceStr);
     } catch (NumberFormatException e) {
       throw new IllegalArgumentException("잘못된 본사 계정번호 형식: " + accountNumber);
@@ -152,8 +159,7 @@ public class HeadquartersAccountService {
   public int getTodayRemainingCount() {
     String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
     long todayCount = getTodayHeadquartersCount(today);
-    int maxDaily = MAX_SEQUENCE - MIN_SEQUENCE + 1;
-    return (int) Math.max(0, maxDaily - todayCount);
+    return (int) Math.max(0, DAILY_CAPACITY - todayCount);
   }
 
   /**
@@ -162,14 +168,13 @@ public class HeadquartersAccountService {
   public DailyAccountStatsDto getTodayAccountStats() {
     String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
     long todayCount = getTodayHeadquartersCount(today);
-    int maxDaily = MAX_SEQUENCE - MIN_SEQUENCE + 1;
     int remaining = getTodayRemainingCount();
     String nextNumber = getNextAvailableAccountNumber();
 
     return DailyAccountStatsDto.builder()
         .date(today)
         .totalGenerated((int) todayCount)
-        .maxDailyCapacity(maxDaily)
+        .maxDailyCapacity(DAILY_CAPACITY)
         .remaining(remaining)
         .nextAccountNumber(nextNumber)
         .sequenceRange(String.format("%d-%d", MIN_SEQUENCE, MAX_SEQUENCE))

@@ -22,7 +22,7 @@ public class HeadquartersResponse {
   @Schema(description = "본사 ID")
   private Long id;
 
-  @Schema(description = "본사 계정번호", example = "17250676")
+  @Schema(description = "본사 계정번호", example = "2412161700")
   private String hqAccountNumber;
 
   @Schema(description = "회사명")

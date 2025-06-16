@@ -18,10 +18,10 @@ import lombok.NoArgsConstructor;
 public class PartnerLoginRequest {
 
   @NotBlank(message = "본사 계정번호는 필수입니다")
-  @Schema(description = "본사 계정번호", example = "17250676")
+  @Schema(description = "본사 계정번호", example = "2412161700")
   private String hqAccountNumber;
 
-  @NotBlank(message = "계층적 아이디는 필수입니다")
+  @NotBlank(message = "협력사 아이디는 필수입니다")
   @Schema(description = "계층적 아이디", example = "p1-kcs01")
   private String hierarchicalId;
 

@@ -49,8 +49,8 @@ public class Partner {
     @Builder.Default
     private List<Partner> children = new ArrayList<>(); // 하위 협력사 목록
 
-    @Column(name = "hq_account_number", nullable = false, length = 8)
-    private String hqAccountNumber; // 본사 계정 번호 (17250676)
+    @Column(name = "hq_account_number", nullable = false, length = 10)
+    private String hqAccountNumber; // 본사 계정 번호 (2412161700)
 
     @Column(name = "hierarchical_id", nullable = false, length = 20)
     private String hierarchicalId; // 계층적 아이디 (p1-kcs01, p2-lyh01)

@@ -36,9 +36,8 @@ public class PartnerService {
         private final PasswordUtil passwordUtil;
 
         // 전문 서비스들
-        private final PartnerAccountService partnerAccountService;
-        private final PartnerTreeService partnerTreeService;
         private final PartnerFactoryService partnerFactoryService;
+        private final PartnerTreeService partnerTreeService;
 
         /**
          * 협력사 로그인 (본사계정번호 + 계층적아이디 + 비밀번호)
@@ -85,12 +84,33 @@ public class PartnerService {
                         throw new IllegalArgumentException("이미 등록된 이메일입니다: " + request.getEmail());
                 }
 
-                // 협력사 생성
+                // 협력사 생성 및 저장
                 Partner partner = partnerFactoryService.createFirstLevelPartner(headquarters, request);
                 Partner savedPartner = partnerRepository.save(partner);
 
-                // 트리 경로 업데이트 (실제 ID로)
-                Partner updatedPartner = partnerFactoryService.updateTreePath(savedPartner);
+                // 저장 후 실제 ID로 트리 경로 업데이트
+                String finalTreePath = partnerTreeService.generateTreePath(savedPartner);
+                Partner updatedPartner = Partner.builder()
+                                .id(savedPartner.getId())
+                                .headquarters(savedPartner.getHeadquarters())
+                                .parent(savedPartner.getParent())
+                                .children(savedPartner.getChildren())
+                                .hqAccountNumber(savedPartner.getHqAccountNumber())
+                                .hierarchicalId(savedPartner.getHierarchicalId())
+                                .companyName(savedPartner.getCompanyName())
+                                .email(savedPartner.getEmail())
+                                .password(savedPartner.getPassword())
+                                .contactPerson(savedPartner.getContactPerson())
+                                .phone(savedPartner.getPhone())
+                                .address(savedPartner.getAddress())
+                                .level(savedPartner.getLevel())
+                                .treePath(finalTreePath)
+                                .status(savedPartner.getStatus())
+                                .passwordChanged(savedPartner.getPasswordChanged())
+                                .createdAt(savedPartner.getCreatedAt())
+                                .updatedAt(savedPartner.getUpdatedAt())
+                                .build();
+
                 Partner finalPartner = partnerRepository.save(updatedPartner);
 
                 log.info("1차 협력사 생성 완료: ID={}, 계층적아이디={}",
@@ -112,12 +132,33 @@ public class PartnerService {
                         throw new IllegalArgumentException("이미 등록된 이메일입니다: " + request.getEmail());
                 }
 
-                // 하위 협력사 생성
+                // 하위 협력사 생성 및 저장
                 Partner partner = partnerFactoryService.createSubPartner(parentPartner, request);
                 Partner savedPartner = partnerRepository.save(partner);
 
-                // 트리 경로 업데이트 (실제 ID로)
-                Partner updatedPartner = partnerFactoryService.updateTreePath(savedPartner);
+                // 저장 후 실제 ID로 트리 경로 업데이트
+                String finalTreePath = partnerTreeService.generateTreePath(savedPartner);
+                Partner updatedPartner = Partner.builder()
+                                .id(savedPartner.getId())
+                                .headquarters(savedPartner.getHeadquarters())
+                                .parent(savedPartner.getParent())
+                                .children(savedPartner.getChildren())
+                                .hqAccountNumber(savedPartner.getHqAccountNumber())
+                                .hierarchicalId(savedPartner.getHierarchicalId())
+                                .companyName(savedPartner.getCompanyName())
+                                .email(savedPartner.getEmail())
+                                .password(savedPartner.getPassword())
+                                .contactPerson(savedPartner.getContactPerson())
+                                .phone(savedPartner.getPhone())
+                                .address(savedPartner.getAddress())
+                                .level(savedPartner.getLevel())
+                                .treePath(finalTreePath)
+                                .status(savedPartner.getStatus())
+                                .passwordChanged(savedPartner.getPasswordChanged())
+                                .createdAt(savedPartner.getCreatedAt())
+                                .updatedAt(savedPartner.getUpdatedAt())
+                                .build();
+
                 Partner finalPartner = partnerRepository.save(updatedPartner);
 
                 log.info("하위 협력사 생성 완료: ID={}, 계층적아이디={}",

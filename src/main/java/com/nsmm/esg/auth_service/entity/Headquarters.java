@@ -10,13 +10,12 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 본사 엔티티 - ESG 프로젝트 최상위 조직
  * 
  * 특징: 루트 권한 보유, 모든 협력사 관리
- * 계정 형태: hqAccountNumber (예: 17250676)
+ * 계정 형태: hqAccountNumber (예: 2412161700)
  * 로그인: 이메일 주소 사용
  */
 @Entity
@@ -36,8 +35,8 @@ public class Headquarters {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id; // 본사 고유 식별자
 
-    @Column(name = "hq_account_number", unique = true, length = 8)
-    private String hqAccountNumber; // 본사 계정 번호 (17250676)
+    @Column(name = "hq_account_number", unique = true, length = 10)
+    private String hqAccountNumber; // 본사 계정 번호 (2412161700)
 
     @Column(name = "company_name", nullable = false)
     private String companyName; // 회사명

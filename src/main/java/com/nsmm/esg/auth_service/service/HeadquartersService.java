@@ -2,7 +2,6 @@ package com.nsmm.esg.auth_service.service;
 
 import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersSignupRequest;
 import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersLoginRequest;
-import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersResponse;
 import com.nsmm.esg.auth_service.entity.Headquarters;
 import com.nsmm.esg.auth_service.repository.HeadquartersRepository;
 import com.nsmm.esg.auth_service.util.PasswordUtil;

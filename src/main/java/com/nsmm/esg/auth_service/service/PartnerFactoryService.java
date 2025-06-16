@@ -32,14 +32,17 @@ public class PartnerFactoryService {
   public Partner createFirstLevelPartner(Headquarters headquarters, PartnerCreateRequest request) {
     log.info("1차 협력사 생성: 본사ID={}, 회사명={}", headquarters.getId(), request.getCompanyName());
 
-    // 계층적 ID 생성 (기존 메서드 사용)
+    // 계층적 ID 생성
     String hierarchicalId = partnerAccountService.generateFirstLevelId(request.getContactPerson());
 
     // 초기 비밀번호는 계층적 ID와 동일
     String initialPassword = hierarchicalId;
     String encodedPassword = passwordUtil.encodePassword(initialPassword);
 
-    // 1차 협력사 엔티티 생성 (트리 경로는 임시로 설정, 저장 후 업데이트)
+    // 1차 협력사 트리 경로 (본사 직속이므로 루트 레벨)
+    String treePath = partnerTreeService.generateFirstLevelTreePath(headquarters.getId());
+
+    // 1차 협력사 엔티티 생성
     return Partner.builder()
         .headquarters(headquarters)
         .parent(null) // 1차 협력사는 상위가 없음
@@ -52,7 +55,7 @@ public class PartnerFactoryService {
         .phone(request.getPhone())
         .address(request.getAddress())
         .level(1)
-        .treePath("/temp/") // 임시 경로, 저장 후 업데이트
+        .treePath(treePath)
         .status(Partner.PartnerStatus.ACTIVE)
         .passwordChanged(false) // 초기 상태
         .build();
@@ -68,7 +71,7 @@ public class PartnerFactoryService {
     // 하위 레벨 계산
     int childLevel = partnerTreeService.calculateLevel(parentPartner);
 
-    // 계층적 ID 생성 (기존 메서드 사용)
+    // 계층적 ID 생성
     String hierarchicalId = partnerAccountService.generateSubLevelId(
         request.getContactPerson(), childLevel, parentPartner.getId());
 
@@ -76,7 +79,10 @@ public class PartnerFactoryService {
     String initialPassword = hierarchicalId;
     String encodedPassword = passwordUtil.encodePassword(initialPassword);
 
-    // 하위 협력사 엔티티 생성 (트리 경로는 임시로 설정, 저장 후 업데이트)
+    // 하위 협력사 트리 경로 생성
+    String treePath = partnerTreeService.generateSubLevelTreePath(parentPartner);
+
+    // 하위 협력사 엔티티 생성
     return Partner.builder()
         .headquarters(parentPartner.getHeadquarters())
         .parent(parentPartner)
@@ -89,38 +95,10 @@ public class PartnerFactoryService {
         .phone(request.getPhone())
         .address(request.getAddress())
         .level(childLevel)
-        .treePath("/temp/") // 임시 경로, 저장 후 업데이트
+        .treePath(treePath)
         .status(Partner.PartnerStatus.ACTIVE)
         .passwordChanged(false) // 초기 상태
         .build();
   }
 
-  /**
-   * 트리 경로 업데이트
-   * 협력사 저장 후 실제 ID를 사용하여 트리 경로 업데이트
-   */
-  public Partner updateTreePath(Partner partner) {
-    String finalTreePath = partnerTreeService.generateTreePath(partner);
-
-    return Partner.builder()
-        .id(partner.getId())
-        .headquarters(partner.getHeadquarters())
-        .parent(partner.getParent())
-        .children(partner.getChildren())
-        .hqAccountNumber(partner.getHqAccountNumber())
-        .hierarchicalId(partner.getHierarchicalId())
-        .companyName(partner.getCompanyName())
-        .email(partner.getEmail())
-        .password(partner.getPassword())
-        .contactPerson(partner.getContactPerson())
-        .phone(partner.getPhone())
-        .address(partner.getAddress())
-        .level(partner.getLevel())
-        .treePath(finalTreePath)
-        .status(partner.getStatus())
-        .passwordChanged(partner.getPasswordChanged())
-        .createdAt(partner.getCreatedAt())
-        .updatedAt(partner.getUpdatedAt())
-        .build();
-  }
 }
