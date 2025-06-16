@@ -11,10 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 협력사 엔티티 (순수한 데이터 모델)
+ * 협력사 엔티티 (계층형 구조)
  * 
  * 비즈니스 로직은 전용 서비스 클래스로 분리:
- * - PartnerAccountService: 계정 번호 생성
+ * - PartnerAccountService: 계층적 아이디 생성
  * - PartnerTreeService: 트리 구조 관리
  * - PartnerFactoryService: 엔티티 생성/수정
  */
@@ -24,8 +24,7 @@ import java.util.List;
         @Index(name = "idx_tree_path", columnList = "tree_path"),
         @Index(name = "idx_level", columnList = "level"),
         @Index(name = "idx_headquarters_id", columnList = "headquarters_id"),
-        @Index(name = "idx_numeric_account_number", columnList = "numeric_account_number"),
-        @Index(name = "idx_external_partner_id", columnList = "external_partner_id")
+        @Index(name = "idx_hq_account_hierarchical", columnList = "hq_account_number,hierarchical_id")
 })
 @Getter
 @Builder
@@ -50,20 +49,17 @@ public class Partner {
     @Builder.Default
     private List<Partner> children = new ArrayList<>(); // 하위 협력사 목록
 
-    @Column(name = "account_number", nullable = false, unique = true, length = 100)
-    private String accountNumber; // 계층적 계정 번호 (p1-kcs01, p2-lyh01)
+    @Column(name = "hq_account_number", nullable = false, length = 8)
+    private String hqAccountNumber; // 본사 계정 번호 (17250676)
 
-    @Column(name = "external_partner_id")
-    private Long externalPartnerId; // 외부 시스템 파트너 ID
-
-    @Column(name = "numeric_account_number", unique = true, length = 12)
-    private String numericAccountNumber; // 8자리 숫자 계정 (90541842)
+    @Column(name = "hierarchical_id", nullable = false, length = 20)
+    private String hierarchicalId; // 계층적 아이디 (p1-kcs01, p2-lyh01)
 
     @Column(name = "company_name", nullable = false)
     private String companyName; // 협력사명
 
     @Column(name = "email", nullable = false, unique = true)
-    private String email; // 로그인 ID (이메일 형식)
+    private String email; // 이메일 (고유 식별용)
 
     @Column(name = "password", nullable = false)
     private String password; // 암호화된 비밀번호
@@ -90,10 +86,7 @@ public class Partner {
 
     @Column(name = "password_changed", nullable = false)
     @Builder.Default
-    private Boolean passwordChanged = false; // 임시 비밀번호 변경 여부
-
-    @Column(name = "temporary_password", length = 100)
-    private String temporaryPassword; // 임시 비밀번호 (생성 시에만 사용)
+    private Boolean passwordChanged = false; // 초기 비밀번호 변경 여부
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -108,5 +101,12 @@ public class Partner {
      */
     public enum PartnerStatus {
         ACTIVE, INACTIVE, SUSPENDED, PENDING
+    }
+
+    /**
+     * 전체 계정 번호 반환 (본사계정번호-계층적아이디)
+     */
+    public String getFullAccountNumber() {
+        return this.hqAccountNumber + "-" + this.hierarchicalId;
     }
 }

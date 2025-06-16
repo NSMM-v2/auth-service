@@ -15,15 +15,15 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * 본사 엔티티 - ESG 프로젝트 최상위 조직
  * 
- * 특징: 루트 권한 보유, 모든 협력사 관리, 8자리 숫자 계정 번호
- * 계정 형태: 8자리 숫자 (예: 10000001, 10000002, ...)
+ * 특징: 루트 권한 보유, 모든 협력사 관리
+ * 계정 형태: hqAccountNumber (예: 17250676)
  * 로그인: 이메일 주소 사용
  */
 @Entity
 @Table(name = "headquarters", indexes = {
         @Index(name = "idx_email", columnList = "email"),
         @Index(name = "idx_status", columnList = "status"),
-        @Index(name = "idx_account_number", columnList = "account_number")
+        @Index(name = "idx_hq_account_number", columnList = "hq_account_number")
 })
 @Getter
 @Builder
@@ -36,8 +36,8 @@ public class Headquarters {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id; // 본사 고유 식별자
 
-    @Column(name = "account_number", unique = true, length = 8)
-    private String accountNumber; // 8자리 숫자 계정 번호 (10000001)
+    @Column(name = "hq_account_number", unique = true, length = 8)
+    private String hqAccountNumber; // 본사 계정 번호 (17250676)
 
     @Column(name = "company_name", nullable = false)
     private String companyName; // 회사명
@@ -85,51 +85,6 @@ public class Headquarters {
     }
 
     /**
-     * 본사 8자리 숫자 계정 번호 생성 (규칙적이지만 예측 어려운 형태)
-     * 
-     * 규칙:
-     * - 첫 2자리: 본사 구분 코드 (10~19)
-     * - 중간 4자리: 연도 + 월 (2024년 12월 → 2412)
-     * - 마지막 2자리: 랜덤 (00~99)
-     * 
-     * 예시: 12241201, 15241203, 18241212
-     * 
-     * @return 8자리 숫자 문자열
-     */
-    public static String generateNewAccountNumber() {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-
-        // 첫 2자리: 본사 구분 코드 (10~19)
-        int companyCode = random.nextInt(10, 20);
-
-        // 중간 4자리: 현재 연도 마지막 2자리 + 월 + 일의 일부
-        java.time.LocalDate now = java.time.LocalDate.now();
-        int year = now.getYear() % 100; // 24 (2024년)
-        int month = now.getMonthValue(); // 01~12
-        String yearMonth = String.format("%02d%02d", year, month);
-
-        // 마지막 2자리: 랜덤
-        int randomSuffix = random.nextInt(0, 100);
-
-        return companyCode + yearMonth + String.format("%02d", randomSuffix);
-    }
-
-    /**
-     * 본사 계정 번호 반환 (인스턴스 메서드)
-     * 저장된 계정 번호가 있으면 반환, 없으면 ID 기반으로 생성
-     */
-    public String generateAccountNumber() {
-        if (this.accountNumber != null) {
-            return this.accountNumber;
-        }
-        // 기존 방식 호환성을 위해 유지 (권장하지 않음)
-        if (this.id == null) {
-            throw new IllegalStateException("본사 ID가 설정되지 않았습니다.");
-        }
-        return String.format("%08d", 10000000 + this.id); // 10000001, 10000002, ...
-    }
-
-    /**
      * 본사 정보 업데이트 (불변성 보장)
      * null 값은 기존 값 유지, 이메일/비밀번호는 별도 메서드 사용
      */
@@ -137,6 +92,7 @@ public class Headquarters {
             String position, String phone, String address) {
         return Headquarters.builder()
                 .id(this.id)
+                .hqAccountNumber(this.hqAccountNumber)
                 .companyName(companyName != null ? companyName : this.companyName)
                 .email(this.email)
                 .password(this.password)
@@ -162,6 +118,7 @@ public class Headquarters {
 
         return Headquarters.builder()
                 .id(this.id)
+                .hqAccountNumber(this.hqAccountNumber)
                 .companyName(this.companyName)
                 .email(this.email)
                 .password(newPassword)
@@ -187,6 +144,7 @@ public class Headquarters {
 
         return Headquarters.builder()
                 .id(this.id)
+                .hqAccountNumber(this.hqAccountNumber)
                 .companyName(this.companyName)
                 .email(this.email)
                 .password(this.password)

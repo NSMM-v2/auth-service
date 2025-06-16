@@ -5,216 +5,198 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.Map;
 
 /**
- * 협력사 계정 번호 생성 전문 서비스
+ * 협력사 계층적 아이디 생성 서비스
  * 
- * 책임:
- * - 계층적 아이디 생성 (p1-kcs01, p2-lyh01)
- * - 8자리 숫자 계정 번호 생성
- * - 이니셜 추출 및 매핑
- * - 중복 검사 및 순번 관리
+ * 주요 기능:
+ * - 1차 협력사 아이디 생성 (p1-xxx01)
+ * - 하위 협력사 아이디 생성 (p2-xxx01, p3-xxx01)
+ * - 담당자명 → 이니셜 변환
+ * - 중복 방지 순번 관리
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PartnerAccountService {
 
   private final PartnerRepository partnerRepository;
 
-  // 한글 성씨 매핑 테이블
-  private static final Map<String, String> SURNAME_MAP = Map.ofEntries(
-      Map.entry("김", "k"), Map.entry("이", "l"), Map.entry("박", "p"),
-      Map.entry("최", "c"), Map.entry("정", "j"), Map.entry("강", "k"),
-      Map.entry("조", "j"), Map.entry("윤", "y"), Map.entry("장", "j"),
-      Map.entry("임", "l"), Map.entry("한", "h"), Map.entry("오", "o"),
-      Map.entry("서", "s"), Map.entry("신", "s"), Map.entry("권", "k"),
-      Map.entry("황", "h"), Map.entry("안", "a"), Map.entry("송", "s"),
-      Map.entry("류", "r"), Map.entry("전", "j"), Map.entry("홍", "h"),
-      Map.entry("고", "g"), Map.entry("문", "m"), Map.entry("양", "y"),
-      Map.entry("손", "s"), Map.entry("배", "b"), Map.entry("조", "c"),
-      Map.entry("백", "b"), Map.entry("허", "h"), Map.entry("유", "y"),
-      Map.entry("남", "n"), Map.entry("심", "s"), Map.entry("노", "n"),
-      Map.entry("하", "h"), Map.entry("곽", "k"), Map.entry("성", "s"),
-      Map.entry("차", "c"), Map.entry("주", "j"), Map.entry("우", "w"),
-      Map.entry("구", "k"), Map.entry("나", "n"), Map.entry("민", "m"),
-      Map.entry("진", "j"), Map.entry("지", "j"), Map.entry("엄", "e"),
-      Map.entry("채", "c"), Map.entry("원", "w"), Map.entry("천", "c"),
-      Map.entry("방", "b"), Map.entry("공", "k"), Map.entry("현", "h"),
-      Map.entry("함", "h"), Map.entry("변", "b"), Map.entry("염", "y"),
-      Map.entry("여", "y"), Map.entry("추", "c"), Map.entry("도", "d"),
-      Map.entry("소", "s"), Map.entry("석", "s"), Map.entry("선", "s"),
-      Map.entry("설", "s"), Map.entry("마", "m"), Map.entry("길", "g"),
-      Map.entry("연", "y"), Map.entry("위", "w"), Map.entry("표", "p"),
-      Map.entry("명", "m"), Map.entry("기", "k"), Map.entry("반", "b"),
-      Map.entry("왕", "w"), Map.entry("금", "k"), Map.entry("옥", "o"),
-      Map.entry("육", "y"), Map.entry("인", "i"), Map.entry("맹", "m"),
-      Map.entry("제", "j"), Map.entry("모", "m"), Map.entry("탁", "t"),
-      Map.entry("국", "k"), Map.entry("어", "e"), Map.entry("은", "e"),
-      Map.entry("편", "p"), Map.entry("용", "y"));
+  // 본사 고정 계정 번호
+  private static final String FIXED_HQ_ACCOUNT_NUMBER = "17250676";
 
-  // 한글 이름 글자 매핑 테이블
-  private static final Map<String, String> NAME_MAP = Map.ofEntries(
-      Map.entry("철", "c"), Map.entry("수", "s"), Map.entry("영", "y"),
-      Map.entry("희", "h"), Map.entry("민", "m"), Map.entry("호", "h"),
-      Map.entry("준", "j"), Map.entry("혁", "h"), Map.entry("진", "j"),
-      Map.entry("우", "w"), Map.entry("현", "h"), Map.entry("석", "s"),
-      Map.entry("규", "k"), Map.entry("용", "y"), Map.entry("성", "s"),
-      Map.entry("원", "w"), Map.entry("택", "t"), Map.entry("빈", "b"),
-      Map.entry("환", "h"), Map.entry("식", "s"), Map.entry("동", "d"),
-      Map.entry("구", "g"), Map.entry("섭", "s"), Map.entry("윤", "y"),
-      Map.entry("형", "h"), Map.entry("건", "k"), Map.entry("태", "t"),
-      Map.entry("완", "w"), Map.entry("균", "k"), Map.entry("훈", "h"),
-      Map.entry("정", "j"), Map.entry("욱", "w"), Map.entry("길", "g"),
-      Map.entry("범", "b"), Map.entry("엽", "y"), Map.entry("근", "k"),
-      Map.entry("배", "b"), Map.entry("복", "b"), Map.entry("상", "s"),
-      Map.entry("국", "g"), Map.entry("권", "k"), Map.entry("혁", "r"),
-      Map.entry("순", "s"), Map.entry("신", "s"), Map.entry("덕", "d"),
-      Map.entry("광", "k"), Map.entry("운", "u"), Map.entry("승", "s"),
-      Map.entry("재", "j"), Map.entry("렬", "r"), Map.entry("무", "m"),
-      Map.entry("열", "y"), Map.entry("천", "c"), Map.entry("종", "j"),
-      Map.entry("립", "l"), Map.entry("관", "k"), Map.entry("칠", "c"),
-      Map.entry("팔", "p"), Map.entry("십", "s"), Map.entry("일", "i"),
-      Map.entry("이", "i"), Map.entry("삼", "s"), Map.entry("사", "s"),
-      Map.entry("오", "o"), Map.entry("육", "y"), Map.entry("칠", "c"),
-      Map.entry("팔", "p"), Map.entry("구", "k"), Map.entry("십", "s"));
+  // 한글 → 영문 이니셜 매핑
+  private static final Map<String, String> KOREAN_TO_ENGLISH = Map.ofEntries(
+      Map.entry("김", "k"), Map.entry("이", "l"), Map.entry("박", "p"), Map.entry("최", "ch"),
+      Map.entry("정", "j"), Map.entry("강", "ka"), Map.entry("윤", "y"), Map.entry("장", "ja"),
+      Map.entry("임", "i"), Map.entry("한", "h"), Map.entry("오", "o"), Map.entry("서", "s"),
+      Map.entry("신", "sh"), Map.entry("권", "kw"), Map.entry("황", "hw"), Map.entry("안", "a"),
+      Map.entry("송", "so"), Map.entry("전", "je"), Map.entry("홍", "ho"), Map.entry("문", "m"),
+      Map.entry("양", "ya"), Map.entry("손", "son"), Map.entry("배", "b"), Map.entry("백", "ba"),
+      Map.entry("허", "he"), Map.entry("유", "yu"), Map.entry("남", "n"), Map.entry("심", "si"),
+      Map.entry("노", "no"), Map.entry("곽", "g"), Map.entry("성", "se"), Map.entry("차", "c"),
+      Map.entry("주", "ju"), Map.entry("우", "w"), Map.entry("구", "gu"), Map.entry("신", "shin"),
+      Map.entry("조", "cho"), Map.entry("마", "ma"), Map.entry("진", "jin"), Map.entry("민", "min"),
+      Map.entry("혁", "hye"), Map.entry("칠", "chil"), Map.entry("팔", "pal"));
 
   /**
-   * 계층적 아이디 생성
-   * 
-   * @param contactPersonName 담당자명
-   * @param level             협력사 레벨
-   * @param parentId          상위 협력사 ID (선택적)
-   * @return 생성된 계층적 아이디
+   * 1차 협력사 계층적 아이디 생성
+   * 형식: p1-xxx01 (예: p1-kcs01, p1-lyh01)
    */
-  public String generateHierarchicalId(String contactPersonName, int level, Long parentId) {
-    String initials = extractContactInitials(contactPersonName);
-    String basePattern = String.format("p%d-%s", level, initials);
+  public String generateFirstLevelId(String contactPersonName) {
+    log.info("1차 협력사 아이디 생성: 담당자명={}", contactPersonName);
 
-    // 중복 검사를 위한 패턴
-    String searchPattern = basePattern + "%";
+    // 담당자명에서 이니셜 추출
+    String initials = extractInitials(contactPersonName);
 
-    // 동일 이니셜의 다음 순번 조회
-    Integer nextSequence = partnerRepository.getNextSequenceForInitials(
-        searchPattern, level, parentId);
+    // 1차 협력사는 레벨 1
+    int level = 1;
 
-    String hierarchicalId = String.format("%s%02d", basePattern, nextSequence);
+    // 순번 생성
+    int sequence = getNextSequence(initials, level, null);
 
-    log.debug("계층적 아이디 생성: 담당자={}, 레벨={}, 결과={}",
-        contactPersonName, level, hierarchicalId);
+    String hierarchicalId = String.format("p%d-%s%02d", level, initials, sequence);
 
+    log.info("1차 협력사 아이디 생성 완료: {}", hierarchicalId);
     return hierarchicalId;
   }
 
   /**
-   * 8자리 숫자 계정 번호 생성 (중복 체크 포함)
-   * 
-   * @return 유니크한 8자리 숫자 계정 번호
+   * 하위 협력사 계층적 아이디 생성
+   * 형식: p2-xxx01, p3-xxx01 등 (예: p2-lyh01, p3-kcs01)
    */
-  public String generateUniqueNumericAccountNumber() {
-    String accountNumber;
-    int attempts = 0;
+  public String generateSubLevelId(String contactPersonName, int level, Long parentId) {
+    log.info("하위 협력사 아이디 생성: 담당자명={}, 레벨={}, 상위ID={}", contactPersonName, level, parentId);
 
-    do {
-      accountNumber = generateNumericAccountNumber();
-      attempts++;
+    // 담당자명에서 이니셜 추출
+    String initials = extractInitials(contactPersonName);
 
-      if (attempts > 10) {
-        throw new RuntimeException("8자리 계정 번호 생성에 실패했습니다. 잠시 후 다시 시도해주세요.");
-      }
-    } while (partnerRepository.existsByNumericAccountNumber(accountNumber));
+    // 순번 생성 (같은 레벨, 같은 상위에서 중복 방지)
+    int sequence = getNextSequence(initials, level, parentId);
 
-    return accountNumber;
+    String hierarchicalId = String.format("p%d-%s%02d", level, initials, sequence);
+
+    log.info("하위 협력사 아이디 생성 완료: {}", hierarchicalId);
+    return hierarchicalId;
   }
 
   /**
-   * 담당자 이름에서 이니셜 추출
-   * 
-   * @param contactPersonName 담당자명
-   * @return 3자리 이니셜
+   * 담당자명에서 이니셜 추출
+   * 한글 → 영문 변환 후 첫 3자리 사용
    */
-  private String extractContactInitials(String contactPersonName) {
+  private String extractInitials(String contactPersonName) {
     if (contactPersonName == null || contactPersonName.trim().isEmpty()) {
-      return "xxx";
+      throw new IllegalArgumentException("담당자명이 비어있습니다.");
     }
 
     String name = contactPersonName.trim();
-
-    // 한글 이름 처리
-    if (name.matches(".*[가-힣].*")) {
-      return extractKoreanInitials(name);
-    }
-
-    // 영문 이름 처리
-    if (name.matches(".*[a-zA-Z].*")) {
-      return extractEnglishInitials(name);
-    }
-
-    return "xxx";
-  }
-
-  /**
-   * 한글 이름에서 이니셜 추출
-   * 
-   * @param koreanName 한글 이름
-   * @return 3자리 이니셜
-   */
-  private String extractKoreanInitials(String koreanName) {
-    if (koreanName.length() >= 2) {
-      String surname = koreanName.substring(0, 1);
-      String firstName = koreanName.substring(1);
-
-      StringBuilder initials = new StringBuilder();
-
-      // 성 이니셜 추가
-      initials.append(SURNAME_MAP.getOrDefault(surname, "x"));
-
-      // 이름 이니셜 추가 (최대 2글자)
-      for (int i = 0; i < Math.min(2, firstName.length()); i++) {
-        String nameChar = firstName.substring(i, i + 1);
-        initials.append(NAME_MAP.getOrDefault(nameChar, nameChar.toLowerCase()));
-      }
-
-      return initials.toString();
-    }
-
-    return "xxx";
-  }
-
-  /**
-   * 영문 이름에서 이니셜 추출
-   * 
-   * @param englishName 영문 이름
-   * @return 3자리 이니셜
-   */
-  private String extractEnglishInitials(String englishName) {
-    String[] parts = englishName.toLowerCase().split("\\s+");
     StringBuilder initials = new StringBuilder();
 
-    for (String part : parts) {
-      if (!part.isEmpty()) {
-        initials.append(part.charAt(0));
+    // 각 글자를 영문으로 변환
+    for (char c : name.toCharArray()) {
+      String korean = String.valueOf(c);
+      String english = KOREAN_TO_ENGLISH.get(korean);
+
+      if (english != null) {
+        initials.append(english);
+      } else {
+        // 한글이 아닌 경우 소문자로 변환하여 추가
+        initials.append(String.valueOf(c).toLowerCase());
+      }
+
+      // 최대 3자리까지만
+      if (initials.length() >= 3) {
+        break;
       }
     }
 
-    // 3자리로 맞추기 (부족하면 x로 채움)
-    while (initials.length() < 3) {
-      initials.append("x");
+    // 최소 2자리, 최대 3자리 보장
+    String result = initials.toString();
+    if (result.length() < 2) {
+      result = result + "x".repeat(2 - result.length()); // 부족한 부분은 x로 채움
+    } else if (result.length() > 3) {
+      result = result.substring(0, 3);
     }
 
-    return initials.length() > 3 ? initials.substring(0, 3) : initials.toString();
+    log.debug("이니셜 추출: {} → {}", contactPersonName, result);
+    return result;
   }
 
   /**
-   * 8자리 숫자 계정 번호 생성
-   * 
-   * @return 8자리 숫자 문자열
+   * 다음 순번 생성
+   * 같은 이니셜, 같은 레벨에서 중복되지 않는 순번 반환
    */
-  private String generateNumericAccountNumber() {
-    ThreadLocalRandom random = ThreadLocalRandom.current();
-    int accountNumber = random.nextInt(10000000, 100000000);
-    return String.valueOf(accountNumber);
+  private int getNextSequence(String initials, int level, Long parentId) {
+    // 기존 협력사 수 조회하여 다음 순번 계산
+    String basePattern = String.format("p%d-%s", level, initials);
+
+    // 같은 본사, 같은 레벨에서 이 이니셜로 시작하는 협력사 수 조회
+    long count;
+    if (parentId == null) {
+      // 1차 협력사의 경우
+      count = partnerRepository.countByHeadquartersIdAndLevel(getDefaultHeadquartersId(), level);
+    } else {
+      // 하위 협력사의 경우 - 실제로는 더 정교한 로직 필요
+      count = partnerRepository.countByHeadquartersIdAndLevel(getDefaultHeadquartersId(), level);
+    }
+
+    int sequence = (int) (count + 1);
+
+    // 중복 확인 및 조정
+    String candidateId = String.format("p%d-%s%02d", level, initials, sequence);
+    while (partnerRepository.existsByHqAccountNumberAndHierarchicalId(FIXED_HQ_ACCOUNT_NUMBER, candidateId)) {
+      sequence++;
+      candidateId = String.format("p%d-%s%02d", level, initials, sequence);
+    }
+
+    log.debug("순번 생성: 이니셜={}, 레벨={}, 순번={}", initials, level, sequence);
+    return sequence;
+  }
+
+  /**
+   * 기본 본사 ID 반환 (임시)
+   * 실제로는 컨텍스트에서 가져와야 함
+   */
+  private Long getDefaultHeadquartersId() {
+    return 1L; // 현재는 고정값, 추후 개선 필요
+  }
+
+  /**
+   * 계층적 아이디 유효성 검증
+   */
+  public boolean isValidHierarchicalId(String hierarchicalId) {
+    if (hierarchicalId == null || hierarchicalId.trim().isEmpty()) {
+      return false;
+    }
+
+    // p{레벨}-{이니셜}{순번} 형식 검증
+    return hierarchicalId.matches("^p\\d+-[a-z]{2,3}\\d{2}$");
+  }
+
+  /**
+   * 계층적 아이디에서 레벨 추출
+   */
+  public int extractLevel(String hierarchicalId) {
+    if (!isValidHierarchicalId(hierarchicalId)) {
+      throw new IllegalArgumentException("잘못된 계층적 아이디 형식: " + hierarchicalId);
+    }
+
+    // p1-kcs01 → 1
+    String levelStr = hierarchicalId.substring(1, hierarchicalId.indexOf('-'));
+    return Integer.parseInt(levelStr);
+  }
+
+  /**
+   * 계층적 아이디에서 이니셜 추출
+   */
+  public String extractInitialsFromId(String hierarchicalId) {
+    if (!isValidHierarchicalId(hierarchicalId)) {
+      throw new IllegalArgumentException("잘못된 계층적 아이디 형식: " + hierarchicalId);
+    }
+
+    // p1-kcs01 → kcs
+    int dashIndex = hierarchicalId.indexOf('-');
+    return hierarchicalId.substring(dashIndex + 1, hierarchicalId.length() - 2);
   }
 }

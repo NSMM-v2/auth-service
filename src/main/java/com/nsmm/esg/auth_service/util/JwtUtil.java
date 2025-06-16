@@ -205,4 +205,5 @@ public class JwtUtil {
     public long getRefreshTokenExpiration() {
         return refreshTokenExpiration;
     }
+
 } 

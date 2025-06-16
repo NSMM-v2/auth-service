@@ -9,15 +9,36 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 /**
- * 본사 레포지토리
+ * 본사 데이터 액세스 레이어
+ * 
+ * 주요 기능:
+ * - 이메일 기반 조회 (로그인용)
+ * - 계정 번호 기반 조회 (JWT 검증용)
+ * - 활성 상태 필터링
+ * - 계정번호 생성 지원
  */
 @Repository
 public interface HeadquartersRepository extends JpaRepository<Headquarters, Long> {
 
     /**
-     * 이메일로 본사 조회
+     * 이메일로 본사 조회 (로그인용)
      */
     Optional<Headquarters> findByEmail(String email);
+
+    /**
+     * 계정 번호로 본사 조회 (JWT 검증용)
+     */
+    Optional<Headquarters> findByHqAccountNumber(String hqAccountNumber);
+
+    /**
+     * 이메일과 상태로 본사 조회
+     */
+    Optional<Headquarters> findByEmailAndStatus(String email, Headquarters.CompanyStatus status);
+
+    /**
+     * 계정 번호와 상태로 본사 조회
+     */
+    Optional<Headquarters> findByHqAccountNumberAndStatus(String hqAccountNumber, Headquarters.CompanyStatus status);
 
     /**
      * 이메일 중복 확인
@@ -27,17 +48,24 @@ public interface HeadquartersRepository extends JpaRepository<Headquarters, Long
     /**
      * 계정 번호 중복 확인
      */
-    boolean existsByAccountNumber(String accountNumber);
+    boolean existsByHqAccountNumber(String hqAccountNumber);
 
     /**
-     * 활성 상태인 본사 조회
+     * 특정 패턴으로 시작하는 계정번호를 가진 본사 수 조회
+     * 계정번호 생성 시 사용 (예: HQ20241216으로 시작하는 본사 수)
      */
-    @Query("SELECT h FROM Headquarters h WHERE h.email = :email AND h.status = 'ACTIVE'")
-    Optional<Headquarters> findActiveByEmail(@Param("email") String email);
+    @Query("SELECT COUNT(h) FROM Headquarters h WHERE h.hqAccountNumber LIKE CONCAT(:pattern, '%')")
+    long countByHqAccountNumberStartingWith(@Param("pattern") String pattern);
 
     /**
-     * 본사 ID로 계정 번호 생성을 위한 조회
+     * 활성 상태인 본사만 조회
      */
-    @Query("SELECT h.id FROM Headquarters h WHERE h.id = :id")
-    Optional<Long> findIdById(@Param("id") Long id);
+    @Query("SELECT h FROM Headquarters h WHERE h.status = 'ACTIVE'")
+    java.util.List<Headquarters> findAllActive();
+
+    /**
+     * 본사 개수 조회 (순번 생성용)
+     */
+    @Query("SELECT COUNT(h) FROM Headquarters h")
+    long countAll();
 }

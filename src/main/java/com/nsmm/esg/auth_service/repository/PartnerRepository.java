@@ -10,25 +10,56 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 협력사 레포지토리 (계층 구조 + AWS 스타일 계정 지원)
+ * 협력사 데이터 액세스 레이어
+ * 
+ * 주요 기능:
+ * - 계층적 아이디 기반 조회 (로그인용)
+ * - 트리 구조 조회 (권한 관리용)
+ * - 본사별 협력사 관리
  */
 @Repository
 public interface PartnerRepository extends JpaRepository<Partner, Long> {
 
-       /**
-        * 계정 번호로 협력사 조회
-        */
-       Optional<Partner> findByAccountNumber(String accountNumber);
+       // === 로그인 관련 메서드 ===
 
        /**
-        * 이메일로 협력사 조회
+        * 본사 계정번호 + 계층적 아이디로 협력사 조회 (로그인용)
+        */
+       Optional<Partner> findByHqAccountNumberAndHierarchicalId(String hqAccountNumber, String hierarchicalId);
+
+       /**
+        * 이메일로 협력사 조회 (고유 식별용)
         */
        Optional<Partner> findByEmail(String email);
 
+       // === 계층 구조 관리 메서드 ===
+
        /**
-        * 계정 번호 중복 확인
+        * 본사별 1차 협력사 조회 (parent가 null인 협력사)
         */
-       boolean existsByAccountNumber(String accountNumber);
+       @Query("SELECT p FROM Partner p WHERE p.headquarters.id = :headquartersId AND p.parent IS NULL ORDER BY p.createdAt ASC")
+       List<Partner> findFirstLevelPartnersByHeadquarters(@Param("headquartersId") Long headquartersId);
+
+       /**
+        * 특정 협력사의 직접 하위 협력사 조회
+        */
+       @Query("SELECT p FROM Partner p WHERE p.parent.id = :parentId ORDER BY p.createdAt ASC")
+       List<Partner> findDirectChildrenByParentId(@Param("parentId") Long parentId);
+
+       /**
+        * 트리 경로로 하위 협력사 조회 (자신 포함)
+        */
+       @Query("SELECT p FROM Partner p WHERE p.treePath LIKE CONCAT(:treePath, '%') ORDER BY p.level ASC, p.createdAt ASC")
+       List<Partner> findByTreePathStartingWith(@Param("treePath") String treePath);
+
+       /**
+        * 특정 레벨의 협력사 조회
+        */
+       @Query("SELECT p FROM Partner p WHERE p.headquarters.id = :headquartersId AND p.level = :level ORDER BY p.createdAt ASC")
+       List<Partner> findByHeadquartersAndLevel(@Param("headquartersId") Long headquartersId,
+                     @Param("level") Integer level);
+
+       // === 중복 검사 메서드 ===
 
        /**
         * 이메일 중복 확인
@@ -36,147 +67,41 @@ public interface PartnerRepository extends JpaRepository<Partner, Long> {
        boolean existsByEmail(String email);
 
        /**
-        * 활성 상태인 협력사 조회 (계정 번호)
+        * 본사 내 계층적 아이디 중복 확인
         */
-       @Query("SELECT p FROM Partner p WHERE p.accountNumber = :accountNumber AND p.status = 'ACTIVE'")
-       Optional<Partner> findActiveByAccountNumber(@Param("accountNumber") String accountNumber);
+       boolean existsByHqAccountNumberAndHierarchicalId(String hqAccountNumber, String hierarchicalId);
+
+       // === 통계 조회 메서드 ===
 
        /**
-        * 외부 파트너 ID로 협력사 조회
-        */
-       Optional<Partner> findByExternalPartnerId(Long externalPartnerId);
-
-       /**
-        * 외부 파트너 ID 중복 확인
-        */
-       boolean existsByExternalPartnerId(Long externalPartnerId);
-
-       /**
-        * 숫자 계정 번호로 협력사 조회
-        */
-       Optional<Partner> findByNumericAccountNumber(String numericAccountNumber);
-
-       /**
-        * 숫자 계정 번호 중복 확인
-        */
-       boolean existsByNumericAccountNumber(String numericAccountNumber);
-
-       /**
-        * 활성 상태인 협력사 조회 (숫자 계정 번호)
-        */
-       @Query("SELECT p FROM Partner p WHERE p.numericAccountNumber = :numericAccountNumber AND p.status = 'ACTIVE'")
-       Optional<Partner> findActiveByNumericAccountNumber(@Param("numericAccountNumber") String numericAccountNumber);
-
-       /**
-        * 본사별 1차 협력사 목록 조회
-        */
-       @Query("SELECT p FROM Partner p WHERE p.headquarters.id = :headquartersId AND p.parent IS NULL ORDER BY p.createdAt")
-       List<Partner> findTopLevelPartnersByHeadquarters(@Param("headquartersId") Long headquartersId);
-
-       /**
-        * 상위 협력사의 직접 하위 협력사 목록 조회
-        */
-       @Query("SELECT p FROM Partner p WHERE p.parent.id = :parentId ORDER BY p.createdAt")
-       List<Partner> findDirectChildrenByParent(@Param("parentId") Long parentId);
-
-       /**
-        * 트리 경로를 이용한 모든 하위 협력사 조회
-        */
-       @Query("SELECT p FROM Partner p WHERE p.treePath LIKE CONCAT(:treePath, '%') AND p.id != :excludeId ORDER BY p.level, p.createdAt")
-       List<Partner> findAllDescendantsByTreePath(@Param("treePath") String treePath,
-                     @Param("excludeId") Long excludeId);
-
-       /**
-        * 특정 레벨의 협력사 목록 조회
-        */
-       @Query("SELECT p FROM Partner p WHERE p.headquarters.id = :headquartersId AND p.level = :level ORDER BY p.createdAt")
-       List<Partner> findByHeadquartersAndLevel(@Param("headquartersId") Long headquartersId,
-                     @Param("level") Integer level);
-
-       /**
-        * 본사별 전체 협력사 수 조회
+        * 본사별 총 협력사 수 조회
         */
        @Query("SELECT COUNT(p) FROM Partner p WHERE p.headquarters.id = :headquartersId")
-       Long countByHeadquarters(@Param("headquartersId") Long headquartersId);
+       long countByHeadquartersId(@Param("headquartersId") Long headquartersId);
 
        /**
-        * 상위 협력사별 하위 협력사 수 조회
+        * 본사별 레벨별 협력사 수 조회
         */
-       @Query("SELECT COUNT(p) FROM Partner p WHERE p.parent.id = :parentId")
-       Long countByParent(@Param("parentId") Long parentId);
+       @Query("SELECT COUNT(p) FROM Partner p WHERE p.headquarters.id = :headquartersId AND p.level = :level")
+       long countByHeadquartersIdAndLevel(@Param("headquartersId") Long headquartersId, @Param("level") Integer level);
 
        /**
-        * 본사와 상위 협력사로 다음 순번 조회 (계정 번호 생성용)
+        * 특정 협력사의 모든 하위 협력사 수 조회
         */
-       @Query("SELECT COUNT(p) + 1 FROM Partner p WHERE p.headquarters.id = :headquartersId AND " +
-                     "(:parentId IS NULL AND p.parent IS NULL OR p.parent.id = :parentId)")
-       Integer getNextSequenceNumber(@Param("headquartersId") Long headquartersId, @Param("parentId") Long parentId);
+       @Query("SELECT COUNT(p) FROM Partner p WHERE p.treePath LIKE CONCAT(:treePath, '%') AND p.id != :excludeId")
+       long countDescendantsByTreePath(@Param("treePath") String treePath, @Param("excludeId") Long excludeId);
+
+       // === 상태별 조회 메서드 ===
 
        /**
-        * 협력사의 모든 상위 협력사 조회 (트리 경로 역순)
+        * 활성 상태 협력사만 조회
         */
-       @Query("SELECT p FROM Partner p WHERE p.treePath IN " +
-                     "(SELECT SUBSTRING(:treePath, 1, LOCATE('/', :treePath, 2)) FROM Partner p2 WHERE p2.id = :partnerId) "
-                     +
-                     "ORDER BY p.level")
-       List<Partner> findAllAncestorsByTreePath(@Param("treePath") String treePath, @Param("partnerId") Long partnerId);
+       @Query("SELECT p FROM Partner p WHERE p.headquarters.id = :headquartersId AND p.status = 'ACTIVE' ORDER BY p.level ASC, p.createdAt ASC")
+       List<Partner> findActivePartnersByHeadquarters(@Param("headquartersId") Long headquartersId);
 
        /**
-        * 본사별 트리 구조 전체 조회 (1차 협력사만, 하위는 fetch join으로)
+        * 비밀번호 미변경 협력사 조회
         */
-       @Query("SELECT DISTINCT p FROM Partner p " +
-                     "LEFT JOIN FETCH p.children " +
-                     "WHERE p.headquarters.id = :headquartersId AND p.parent IS NULL " +
-                     "ORDER BY p.createdAt")
-       List<Partner> findTreeStructureByHeadquarters(@Param("headquartersId") Long headquartersId);
-
-       /**
-        * 특정 협력사의 하위 트리 구조 조회
-        */
-       @Query("SELECT DISTINCT p FROM Partner p " +
-                     "LEFT JOIN FETCH p.children " +
-                     "WHERE p.treePath LIKE CONCAT(:treePath, '%') " +
-                     "ORDER BY p.level, p.createdAt")
-       List<Partner> findSubTreeByTreePath(@Param("treePath") String treePath);
-
-       /**
-        * 비밀번호 변경이 필요한 협력사 조회
-        */
-       @Query("SELECT p FROM Partner p WHERE p.passwordChanged = false AND p.status = 'ACTIVE'")
-       List<Partner> findPartnersNeedingPasswordChange();
-
-       /**
-        * 임시 비밀번호로 생성된 협력사 조회
-        */
-       @Query("SELECT p FROM Partner p WHERE p.temporaryPassword IS NOT NULL AND p.passwordChanged = false")
-       List<Partner> findPartnersWithTemporaryPassword();
-
-       /**
-        * 계층적 아이디 중복 체크용 - 특정 패턴으로 시작하는 계정번호 개수 조회
-        * 
-        * @param pattern  검색할 패턴 (예: "p1-kcs%")
-        * @param level    협력사 레벨
-        * @param parentId 상위 협력사 ID (null이면 1차 협력사)
-        * @return 해당 패턴의 개수
-        */
-       @Query("SELECT COUNT(p) FROM Partner p WHERE p.accountNumber LIKE :pattern AND p.level = :level AND " +
-                     "(:parentId IS NULL AND p.parent IS NULL OR p.parent.id = :parentId)")
-       Long countByAccountNumberPatternAndLevelAndParent(@Param("pattern") String pattern,
-                     @Param("level") Integer level,
-                     @Param("parentId") Long parentId);
-
-       /**
-        * 같은 이니셜을 가진 협력사들의 다음 순번 조회
-        * 
-        * @param initialsPattern 이니셜 패턴 (예: "p1-kcs%")
-        * @param level           협력사 레벨
-        * @param parentId        상위 협력사 ID
-        * @return 다음 순번
-        */
-       @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(p.accountNumber, LENGTH(:initialsPattern) + 1) AS int)), 0) + 1 " +
-                     "FROM Partner p WHERE p.accountNumber LIKE :initialsPattern AND p.level = :level AND " +
-                     "(:parentId IS NULL AND p.parent IS NULL OR p.parent.id = :parentId)")
-       Integer getNextSequenceForInitials(@Param("initialsPattern") String initialsPattern,
-                     @Param("level") Integer level,
-                     @Param("parentId") Long parentId);
+       @Query("SELECT p FROM Partner p WHERE p.headquarters.id = :headquartersId AND p.passwordChanged = false ORDER BY p.createdAt ASC")
+       List<Partner> findUnchangedPasswordPartners(@Param("headquartersId") Long headquartersId);
 }

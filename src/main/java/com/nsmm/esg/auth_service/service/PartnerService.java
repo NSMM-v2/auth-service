@@ -1,434 +1,245 @@
 package com.nsmm.esg.auth_service.service;
 
-import com.nsmm.esg.auth_service.dto.AuthDto;
-import com.nsmm.esg.auth_service.dto.PartnerDto;
+import com.nsmm.esg.auth_service.dto.partner.PartnerCreateRequest;
 import com.nsmm.esg.auth_service.entity.Headquarters;
 import com.nsmm.esg.auth_service.entity.Partner;
 import com.nsmm.esg.auth_service.repository.HeadquartersRepository;
 import com.nsmm.esg.auth_service.repository.PartnerRepository;
-import com.nsmm.esg.auth_service.util.JwtUtil;
 import com.nsmm.esg.auth_service.util.PasswordUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
- * 협력사 서비스 (리팩토링 버전)
+ * 협력사 비즈니스 로직 서비스
  * 
- * 역할: 비즈니스 오케스트레이션
- * - 전문 서비스들을 조합하여 복잡한 비즈니스 로직 수행
- * - 트랜잭션 관리
- * - 권한 검증
+ * 주요 기능:
+ * - 협력사 생성 (본사가 1차, 1차가 2차 생성)
+ * - 계층적 로그인 (본사계정번호 + 계층적아이디 + 비밀번호)
+ * - 트리 구조 관리
+ * - 초기 비밀번호 변경 관리
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class PartnerService {
 
         private final PartnerRepository partnerRepository;
         private final HeadquartersRepository headquartersRepository;
-        private final HeadquartersService headquartersService;
         private final PasswordUtil passwordUtil;
-        private final JwtUtil jwtUtil;
 
-        // 새로 추가된 전문 서비스들
+        // 전문 서비스들
         private final PartnerAccountService partnerAccountService;
         private final PartnerTreeService partnerTreeService;
         private final PartnerFactoryService partnerFactoryService;
 
         /**
-         * 협력사 생성 (계층적 아이디 기반)
+         * 협력사 로그인 (본사계정번호 + 계층적아이디 + 비밀번호)
          */
-        @Transactional
-        public PartnerDto.CreateResponse createPartner(Long creatorHeadquartersId, Long creatorPartnerId,
-                        PartnerDto.CreateRequest request) {
-                log.info("협력사 생성 요청: 생성자 본사 ID {}, 생성자 협력사 ID {}, 요청 데이터 {}",
-                                creatorHeadquartersId, creatorPartnerId, request);
+        public Partner login(String hqAccountNumber, String hierarchicalId, String password) {
+                log.info("협력사 로그인 요청: 본사계정번호={}, 계층적아이디={}", hqAccountNumber, hierarchicalId);
 
-                // 본사 정보 조회
-                Headquarters headquarters = headquartersRepository.findById(creatorHeadquartersId)
-                                .orElseThrow(() -> new IllegalArgumentException(
-                                                "존재하지 않는 본사입니다: " + creatorHeadquartersId));
-
-                // 상위 협력사 조회 (선택적)
-                Partner parentPartner = null;
-                if (request.getParentId() != null) {
-                        parentPartner = partnerRepository.findById(request.getParentId())
-                                        .orElseThrow(() -> new IllegalArgumentException(
-                                                        "존재하지 않는 상위 협력사입니다: " + request.getParentId()));
+                // 본사 계정번호 존재 여부 검증
+                if (!headquartersRepository.existsByHqAccountNumber(hqAccountNumber)) {
+                        throw new BadCredentialsException("존재하지 않는 본사 계정번호입니다: " + hqAccountNumber);
                 }
 
-                // 레벨 계산 (PartnerTreeService 사용)
-                int level = partnerTreeService.calculateLevel(parentPartner);
+                // 협력사 조회
+                Partner partner = partnerRepository
+                                .findByHqAccountNumberAndHierarchicalId(hqAccountNumber, hierarchicalId)
+                                .orElseThrow(() -> new UsernameNotFoundException(
+                                                "존재하지 않는 협력사입니다: " + hqAccountNumber + "-" + hierarchicalId));
 
-                // 계층적 아이디 생성 (PartnerAccountService 사용)
-                String hierarchicalId = partnerAccountService.generateHierarchicalId(
-                                request.getContactPerson(), level,
-                                parentPartner != null ? parentPartner.getId() : null);
+                // 계정 상태 확인
+                if (!Partner.PartnerStatus.ACTIVE.equals(partner.getStatus())) {
+                        throw new BadCredentialsException("비활성화된 계정입니다.");
+                }
 
-                // 8자리 숫자 계정 번호 생성 (PartnerAccountService 사용)
-                String numericAccountNumber = partnerAccountService.generateUniqueNumericAccountNumber();
+                // 비밀번호 검증
+                if (!passwordUtil.matches(password, partner.getPassword())) {
+                        throw new BadCredentialsException("비밀번호가 일치하지 않습니다.");
+                }
 
-                // 담당자 이름 기반 임시 비밀번호 생성
-                String temporaryPassword = passwordUtil.generateContactBasedPassword(request.getContactPerson());
-                String encodedPassword = passwordUtil.encodePassword(temporaryPassword);
+                log.info("협력사 로그인 성공: ID={}, 계층적아이디={}", partner.getId(), partner.getHierarchicalId());
 
-                // 협력사 엔티티 생성 (PartnerFactoryService 사용)
-                Partner partner = partnerFactoryService.createNewPartner(
-                                headquarters, parentPartner, hierarchicalId, numericAccountNumber,
-                                request.getCompanyName(), request.getEmail(), encodedPassword,
-                                request.getContactPerson(), request.getPhone(), request.getAddress(),
-                                level, null, temporaryPassword);
-
-                // 저장 (ID 생성을 위해)
-                Partner savedPartner = partnerRepository.save(partner);
-
-                // 트리 경로 생성 및 업데이트 (PartnerTreeService 사용)
-                String treePath = partnerTreeService.generateTreePath(savedPartner);
-                Partner updatedPartner = partnerFactoryService.withAccountNumberAndTreePath(
-                                savedPartner, hierarchicalId, treePath);
-                Partner finalPartner = partnerRepository.save(updatedPartner);
-
-                log.info("협력사 생성 완료: ID={}, 계층적아이디={}, 8자리계정={}, 레벨={}",
-                                finalPartner.getId(), hierarchicalId, numericAccountNumber, level);
-
-                return PartnerDto.CreateResponse.builder()
-                                .partnerId(finalPartner.getId())
-                                .hierarchicalId(hierarchicalId)
-                                .numericAccountNumber(numericAccountNumber)
-                                .temporaryPassword(temporaryPassword)
-                                .companyName(request.getCompanyName())
-                                .contactPerson(request.getContactPerson())
-                                .level(level)
-                                .treePath(treePath)
-                                .createdAt(finalPartner.getCreatedAt())
-                                .message(String.format("협력사가 성공적으로 생성되었습니다. 계층적 아이디: %s", hierarchicalId))
-                                .build();
+                return partner;
         }
 
         /**
-         * 외부 시스템용 협력사 인증 계정 생성 (호환성 유지)
+         * 협력사 생성 (1차 협력사)
+         * 본사에서 직접 생성하는 1차 협력사
          */
         @Transactional
-        public PartnerDto.AuthAccountCreateResponse createAuthAccount(PartnerDto.AuthAccountCreateRequest request) {
-                log.info("외부 시스템용 인증 계정 생성: 파트너 ID {}", request.getPartnerId());
+        public Partner createFirstLevelPartner(Headquarters headquarters, PartnerCreateRequest request) {
+                log.info("1차 협력사 생성 요청: 본사ID={}, 회사명={}", headquarters.getId(), request.getCompanyName());
 
-                // 본사 조회
-                Headquarters headquarters = headquartersService.findById(request.getHeadquartersId());
-
-                // 상위 협력사 조회 (선택적)
-                Partner parentPartner = null;
-                if (request.getParentId() != null) {
-                        parentPartner = partnerRepository.findById(request.getParentId())
-                                        .orElseThrow(() -> new IllegalArgumentException(
-                                                        "존재하지 않는 상위 협력사입니다: " + request.getParentId()));
+                // 이메일 중복 검사
+                if (partnerRepository.existsByEmail(request.getEmail())) {
+                        throw new IllegalArgumentException("이미 등록된 이메일입니다: " + request.getEmail());
                 }
 
-                // 레벨 계산
-                int level = partnerTreeService.calculateLevel(parentPartner);
+                // 협력사 생성
+                Partner partner = partnerFactoryService.createFirstLevelPartner(headquarters, request);
+                Partner savedPartner = partnerRepository.save(partner);
 
-                // 계층적 아이디 생성
-                String hierarchicalId = partnerAccountService.generateHierarchicalId(
-                                request.getContactPerson(), level,
-                                parentPartner != null ? parentPartner.getId() : null);
+                // 트리 경로 업데이트 (실제 ID로)
+                Partner updatedPartner = partnerFactoryService.updateTreePath(savedPartner);
+                Partner finalPartner = partnerRepository.save(updatedPartner);
 
-                // 8자리 숫자 계정 번호 생성
-                String numericAccountNumber = partnerAccountService.generateUniqueNumericAccountNumber();
+                log.info("1차 협력사 생성 완료: ID={}, 계층적아이디={}",
+                                finalPartner.getId(), finalPartner.getHierarchicalId());
 
-                // 담당자 이름 기반 임시 비밀번호 생성
-                String temporaryPassword = passwordUtil.generateContactBasedPassword(request.getContactPerson());
-                String encodedPassword = passwordUtil.encodePassword(temporaryPassword);
+                return finalPartner;
+        }
 
-                // 협력사 엔티티 생성
-                Partner partner = partnerFactoryService.createNewPartner(
-                                headquarters, parentPartner, hierarchicalId, numericAccountNumber,
-                                request.getCompanyName(), request.getEmail(), encodedPassword,
-                                request.getContactPerson(), request.getPhone(), request.getAddress(),
-                                level, null, temporaryPassword);
+        /**
+         * 협력사 생성 (하위 협력사)
+         * 상위 협력사에서 하위 협력사 생성
+         */
+        @Transactional
+        public Partner createSubPartner(Partner parentPartner, PartnerCreateRequest request) {
+                log.info("하위 협력사 생성 요청: 상위ID={}, 회사명={}", parentPartner.getId(), request.getCompanyName());
 
-                // externalPartnerId 설정
-                partner = Partner.builder()
+                // 이메일 중복 검사
+                if (partnerRepository.existsByEmail(request.getEmail())) {
+                        throw new IllegalArgumentException("이미 등록된 이메일입니다: " + request.getEmail());
+                }
+
+                // 하위 협력사 생성
+                Partner partner = partnerFactoryService.createSubPartner(parentPartner, request);
+                Partner savedPartner = partnerRepository.save(partner);
+
+                // 트리 경로 업데이트 (실제 ID로)
+                Partner updatedPartner = partnerFactoryService.updateTreePath(savedPartner);
+                Partner finalPartner = partnerRepository.save(updatedPartner);
+
+                log.info("하위 협력사 생성 완료: ID={}, 계층적아이디={}",
+                                finalPartner.getId(), finalPartner.getHierarchicalId());
+
+                return finalPartner;
+        }
+
+        /**
+         * 협력사 정보 조회 (ID)
+         */
+        public Optional<Partner> findById(Long id) {
+                return partnerRepository.findById(id);
+        }
+
+        /**
+         * 협력사 정보 조회 (이메일)
+         */
+        public Optional<Partner> findByEmail(String email) {
+                return partnerRepository.findByEmail(email);
+        }
+
+        /**
+         * 협력사 정보 조회 (계층적 식별자)
+         */
+        public Optional<Partner> findByHierarchicalId(String hqAccountNumber, String hierarchicalId) {
+                return partnerRepository.findByHqAccountNumberAndHierarchicalId(hqAccountNumber, hierarchicalId);
+        }
+
+        /**
+         * 본사별 1차 협력사 목록 조회
+         */
+        public List<Partner> findFirstLevelPartners(Long headquartersId) {
+                return partnerRepository.findFirstLevelPartnersByHeadquarters(headquartersId);
+        }
+
+        /**
+         * 특정 협력사의 직접 하위 협력사 목록 조회
+         */
+        public List<Partner> findDirectChildren(Long parentId) {
+                return partnerRepository.findDirectChildrenByParentId(parentId);
+        }
+
+        /**
+         * 협력사 트리 구조 조회 (하위 모든 협력사 포함)
+         */
+        public List<Partner> findPartnerTree(String treePath) {
+                return partnerRepository.findByTreePathStartingWith(treePath);
+        }
+
+        /**
+         * 초기 비밀번호 변경
+         * 협력사 첫 로그인 후 비밀번호 변경
+         */
+        @Transactional
+        public void changeInitialPassword(Long partnerId, String newPassword) {
+                log.info("초기 비밀번호 변경 요청: 협력사ID={}", partnerId);
+
+                Partner partner = partnerRepository.findById(partnerId)
+                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 협력사입니다: " + partnerId));
+
+                // 새 비밀번호 암호화
+                String encodedPassword = passwordUtil.encodePassword(newPassword);
+
+                // 비밀번호 변경 및 변경 플래그 설정
+                Partner updatedPartner = Partner.builder()
+                                .id(partner.getId())
                                 .headquarters(partner.getHeadquarters())
                                 .parent(partner.getParent())
-                                .accountNumber(partner.getAccountNumber())
-                                .externalPartnerId(request.getPartnerId())
-                                .numericAccountNumber(partner.getNumericAccountNumber())
+                                .children(partner.getChildren())
+                                .hqAccountNumber(partner.getHqAccountNumber())
+                                .hierarchicalId(partner.getHierarchicalId())
                                 .companyName(partner.getCompanyName())
                                 .email(partner.getEmail())
-                                .password(partner.getPassword())
+                                .password(encodedPassword)
                                 .contactPerson(partner.getContactPerson())
                                 .phone(partner.getPhone())
                                 .address(partner.getAddress())
                                 .level(partner.getLevel())
                                 .treePath(partner.getTreePath())
                                 .status(partner.getStatus())
-                                .passwordChanged(partner.getPasswordChanged())
-                                .temporaryPassword(partner.getTemporaryPassword())
+                                .passwordChanged(true) // 변경 완료 표시
+                                .createdAt(partner.getCreatedAt())
+                                .updatedAt(partner.getUpdatedAt())
                                 .build();
 
-                // 저장
-                Partner savedPartner = partnerRepository.save(partner);
-
-                // 트리 경로 생성 및 업데이트
-                String treePath = partnerTreeService.generateTreePath(savedPartner);
-                Partner updatedPartner = partnerFactoryService.withAccountNumberAndTreePath(
-                                savedPartner, hierarchicalId, treePath);
-                Partner finalPartner = partnerRepository.save(updatedPartner);
-
-                log.info("계층적 아이디 인증 계정 생성 완료: 파트너ID={}, 8자리계정번호={}, 계층적아이디={}",
-                                request.getPartnerId(), numericAccountNumber, finalPartner.getAccountNumber());
-
-                return PartnerDto.AuthAccountCreateResponse.builder()
-                                .authId(finalPartner.getId())
-                                .partnerId(request.getPartnerId())
-                                .accountNumber(numericAccountNumber)
-                                .loginId(finalPartner.getAccountNumber()) // 계층적 아이디를 loginId로 사용
-                                .temporaryPassword(temporaryPassword)
-                                .companyName(request.getCompanyName())
-                                .contactPerson(request.getContactPerson())
-                                .createdAt(finalPartner.getCreatedAt())
-                                .message("계층적 아이디 인증 계정이 생성되었습니다. 계층적 아이디 또는 8자리 계정번호로 로그인하세요.")
-                                .build();
-        }
-
-        /**
-         * 통합 로그인 (계층적 아이디, 8자리 숫자 계정 번호 지원)
-         */
-        public AuthDto.TokenResponse loginWithAwsStyle(PartnerDto.LoginRequest request) {
-                log.info("협력사 로그인 시도: {}", request.getAccountNumber());
-
-                Partner partner = null;
-                String accountNumber = request.getAccountNumber().trim();
-
-                // 1. 계층적 아이디로 조회 시도 (p1-kcs01, p2-lyh01 형식)
-                if (accountNumber.matches("^p\\d+-[a-z]{2,3}\\d{2}$")) {
-                        partner = partnerRepository.findActiveByAccountNumber(accountNumber)
-                                        .orElse(null);
-                        log.debug("계층적 아이디로 조회: {}", accountNumber);
-                }
-
-                // 2. 8자리 숫자 계정 번호로 조회 시도
-                if (partner == null && accountNumber.matches("\\d{8}")) {
-                        partner = partnerRepository.findActiveByNumericAccountNumber(accountNumber)
-                                        .orElse(null);
-                        log.debug("8자리 숫자 계정으로 조회: {}", accountNumber);
-                }
-
-                // 3. 기존 방식 계정 번호로 조회 시도 (호환성 - HQ001-L1-001 형식)
-                if (partner == null) {
-                        partner = partnerRepository.findActiveByAccountNumber(accountNumber)
-                                        .orElse(null);
-                        log.debug("기존 방식 계정번호로 조회: {}", accountNumber);
-                }
-
-                if (partner == null) {
-                        throw new IllegalArgumentException("존재하지 않거나 비활성화된 계정입니다: " + accountNumber);
-                }
-
-                // 비밀번호 검증
-                if (!passwordUtil.matches(request.getPassword(), partner.getPassword())) {
-                        throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
-                }
-
-                // JWT 클레임 생성 (입력된 계정 번호를 우선 사용)
-                String displayAccountNumber = determineDisplayAccountNumber(partner, accountNumber);
-
-                AuthDto.JwtClaims claims = AuthDto.JwtClaims.builder()
-                                .accountNumber(displayAccountNumber)
-                                .companyName(partner.getCompanyName())
-                                .userType("PARTNER")
-                                .level(partner.getLevel())
-                                .treePath(partner.getTreePath())
-                                .headquartersId(partner.getHeadquarters().getId())
-                                .userId(partner.getId())
-                                .build();
-
-                // 토큰 생성
-                String accessToken = jwtUtil.generateAccessToken(claims);
-                String refreshToken = jwtUtil.generateRefreshToken(displayAccountNumber);
-
-                log.info("협력사 로그인 성공: {} (담당자: {}, 계정번호: {}, 레벨: {})",
-                                partner.getCompanyName(), partner.getContactPerson(), displayAccountNumber,
-                                partner.getLevel());
-
-                return AuthDto.TokenResponse.of(
-                                accessToken,
-                                refreshToken,
-                                jwtUtil.getAccessTokenExpiration(),
-                                displayAccountNumber,
-                                partner.getCompanyName(),
-                                "PARTNER",
-                                partner.getLevel());
-        }
-
-        /**
-         * 표시할 계정 번호 결정 (로그인에 사용된 형식 우선)
-         */
-        private String determineDisplayAccountNumber(Partner partner, String inputAccountNumber) {
-                // 입력된 계정 번호가 유효하면 그대로 사용
-                if (inputAccountNumber.matches("^p\\d+-[a-z]{2,3}\\d{2}$")) {
-                        return inputAccountNumber; // 계층적 아이디
-                }
-
-                // 기본값으로 계층적 아이디 반환 (새로운 기본 형식)
-                if (partner.getAccountNumber() != null
-                                && partner.getAccountNumber().matches("^p\\d+-[a-z]{2,3}\\d{2}$")) {
-                        return partner.getAccountNumber();
-                }
-
-                // 8자리 숫자 계정이 있으면 반환
-                if (partner.getNumericAccountNumber() != null) {
-                        return partner.getNumericAccountNumber();
-                }
-
-                // 최종적으로 저장된 계정 번호 반환
-                return partner.getAccountNumber();
-        }
-
-        /**
-         * 협력사 정보 조회
-         */
-        public PartnerDto.Response getPartnerInfo(Long partnerId) {
-                log.info("협력사 정보 조회: {}", partnerId);
-
-                Partner partner = partnerRepository.findById(partnerId)
-                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 협력사입니다: " + partnerId));
-
-                return PartnerDto.Response.from(partner);
-        }
-
-        /**
-         * 본사의 1차 협력사 목록 조회
-         */
-        public List<PartnerDto.Response> getTopLevelPartners(Long headquartersId) {
-                log.info("1차 협력사 목록 조회: 본사 ID {}", headquartersId);
-
-                List<Partner> partners = partnerRepository.findTopLevelPartnersByHeadquarters(headquartersId);
-                return partners.stream()
-                                .map(PartnerDto.Response::from)
-                                .toList();
-        }
-
-        /**
-         * 상위 협력사의 직접 하위 협력사 목록 조회
-         */
-        public List<PartnerDto.Response> getDirectChildren(Long parentId) {
-                log.info("직접 하위 협력사 목록 조회: 상위 협력사 ID {}", parentId);
-
-                List<Partner> children = partnerRepository.findDirectChildrenByParent(parentId);
-                return children.stream()
-                                .map(PartnerDto.Response::from)
-                                .toList();
-        }
-
-        /**
-         * 협력사 하위 트리 구조 조회
-         */
-        public List<PartnerDto.TreeResponse> getSubTree(Long partnerId) {
-                log.info("하위 트리 구조 조회: 협력사 ID {}", partnerId);
-
-                Partner partner = partnerRepository.findById(partnerId)
-                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 협력사입니다: " + partnerId));
-
-                List<Partner> subTree = partnerRepository.findSubTreeByTreePath(partner.getTreePath());
-                return subTree.stream()
-                                .map(p -> PartnerDto.TreeResponse.builder()
-                                                .partnerId(p.getId())
-                                                .accountNumber(p.getAccountNumber())
-                                                .companyName(p.getCompanyName())
-                                                .contactPerson(p.getContactPerson())
-                                                .level(p.getLevel())
-                                                .treePath(p.getTreePath())
-                                                .parentId(p.getParent() != null ? p.getParent().getId() : null)
-                                                .status(p.getStatus().toString())
-                                                .build())
-                                .toList();
-        }
-
-        /**
-         * 비밀번호 변경 (PartnerFactoryService 사용)
-         */
-        @Transactional
-        public void changePassword(Long partnerId, PartnerDto.PasswordChangeRequest request) {
-                log.info("비밀번호 변경: 협력사 ID {}", partnerId);
-
-                Partner partner = partnerRepository.findById(partnerId)
-                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 협력사입니다: " + partnerId));
-
-                // 현재 비밀번호 확인
-                if (!passwordUtil.matches(request.getCurrentPassword(), partner.getPassword())) {
-                        throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
-                }
-
-                // 새 비밀번호 암호화
-                String encodedNewPassword = passwordUtil.encodePassword(request.getNewPassword());
-
-                // PartnerFactoryService를 통한 비밀번호 변경
-                Partner updatedPartner = partnerFactoryService.changePassword(partner, encodedNewPassword);
                 partnerRepository.save(updatedPartner);
-
-                log.info("비밀번호 변경 완료: 협력사 ID {}", partnerId);
+                log.info("초기 비밀번호 변경 완료: 협력사ID={}", partnerId);
         }
 
         /**
-         * 협력사 상태 변경 (PartnerFactoryService 사용)
+         * 비밀번호 미변경 협력사 목록 조회
          */
-        @Transactional
-        public void changeStatus(Long partnerId, PartnerDto.StatusChangeRequest request) {
-                log.info("협력사 상태 변경: 협력사 ID {}, 새 상태 {}", partnerId, request.getStatus());
-
-                Partner partner = partnerRepository.findById(partnerId)
-                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 협력사입니다: " + partnerId));
-
-                // PartnerFactoryService를 통한 상태 변경
-                Partner updatedPartner = partnerFactoryService.changeStatus(partner, request.getStatus());
-                partnerRepository.save(updatedPartner);
-
-                log.info("협력사 상태 변경 완료: 협력사 ID {}, 상태 {}", partnerId, request.getStatus());
+        public List<Partner> findUnchangedPasswordPartners(Long headquartersId) {
+                return partnerRepository.findUnchangedPasswordPartners(headquartersId);
         }
 
         /**
-         * 협력사 정보 업데이트 (PartnerFactoryService 사용)
+         * 본사별 활성 협력사 목록 조회
          */
-        @Transactional
-        public PartnerDto.Response updatePartnerInfo(Long partnerId, PartnerDto.UpdateRequest request) {
-                log.info("협력사 정보 업데이트: 협력사 ID {}", partnerId);
-
-                Partner partner = partnerRepository.findById(partnerId)
-                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 협력사입니다: " + partnerId));
-
-                // PartnerFactoryService를 통한 정보 업데이트
-                Partner updatedPartner = partnerFactoryService.updatePartnerInfo(
-                                partner, request.getCompanyName(), request.getContactPerson(),
-                                request.getPhone(), request.getAddress());
-
-                Partner savedPartner = partnerRepository.save(updatedPartner);
-
-                log.info("협력사 정보 업데이트 완료: 협력사 ID {}", partnerId);
-                return PartnerDto.Response.from(savedPartner);
+        public List<Partner> findActivePartners(Long headquartersId) {
+                return partnerRepository.findActivePartnersByHeadquarters(headquartersId);
         }
 
         /**
-         * 계정 번호로 협력사 조회 (내부 사용)
+         * 이메일 중복 확인
          */
-        public Partner findByAccountNumber(String accountNumber) {
-                return partnerRepository.findByAccountNumber(accountNumber)
-                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정 번호입니다: " + accountNumber));
+        public boolean isEmailDuplicate(String email) {
+                return partnerRepository.existsByEmail(email);
         }
 
         /**
-         * 비밀번호 변경이 필요한 협력사 목록 조회
+         * 계층적 아이디 중복 확인
          */
-        public List<PartnerDto.Response> getPartnersNeedingPasswordChange() {
-                log.info("비밀번호 변경이 필요한 협력사 목록 조회");
+        public boolean isHierarchicalIdDuplicate(String hqAccountNumber, String hierarchicalId) {
+                return partnerRepository.existsByHqAccountNumberAndHierarchicalId(hqAccountNumber, hierarchicalId);
+        }
 
-                List<Partner> partners = partnerRepository.findPartnersNeedingPasswordChange();
-                return partners.stream()
-                                .map(PartnerDto.Response::from)
-                                .toList();
+        /**
+         * 본사 계정번호 유효성 검증
+         */
+        public boolean isValidHqAccountNumber(String hqAccountNumber) {
+                return headquartersRepository.existsByHqAccountNumber(hqAccountNumber);
         }
 }

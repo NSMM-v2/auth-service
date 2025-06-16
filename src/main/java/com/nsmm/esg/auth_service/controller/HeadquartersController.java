@@ -1,188 +1,180 @@
 package com.nsmm.esg.auth_service.controller;
 
 import com.nsmm.esg.auth_service.dto.AuthDto;
-import com.nsmm.esg.auth_service.dto.HeadquartersDto;
+import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersLoginRequest;
+import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersSignupRequest;
+import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersSignupResponse;
+import com.nsmm.esg.auth_service.entity.Headquarters;
 import com.nsmm.esg.auth_service.service.HeadquartersService;
+import com.nsmm.esg.auth_service.util.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * 본사 컨트롤러 - 본사 회원가입, 로그인, 정보 관리 API 제공
+ * 본사 관리 컨트롤러
+ * 
+ * 주요 기능:
+ * - 본사 회원가입 (동적 계정번호 생성)
+ * - 이메일 기반 로그인
+ * - JWT 쿠키 인증
+ * - 본사 정보 관리
  */
-@Slf4j
 @RestController
 @RequestMapping("/api/v1/headquarters")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "본사 관리", description = "본사 회원가입, 로그인, 정보 관리 API")
 public class HeadquartersController {
 
         private final HeadquartersService headquartersService;
+        private final JwtUtil jwtUtil;
 
-        @Operation(summary = "본사 회원가입 (8자리 숫자 계정 + 친화적 비밀번호)")
-        @PostMapping("/signup")
-        public ResponseEntity<AuthDto.ApiResponse<HeadquartersDto.SignupResponse>> signup(
-                        @Valid @RequestBody HeadquartersDto.SignupRequest request) {
+        /**
+         * 본사 회원가입
+         * 계정번호 자동 생성 (HQ + YYYYMMDD + 순번), 이메일 중복 검사
+         */
+        @PostMapping("/register")
+        @Operation(summary = "본사 회원가입", description = "계정번호 자동 생성을 통한 본사 회원가입")
+        public ResponseEntity<AuthDto.ApiResponse<HeadquartersSignupResponse>> register(
+                        @Valid @RequestBody HeadquartersSignupRequest request) {
 
-                log.info("본사 회원가입 요청: {}", request.getEmail());
+                log.info("본사 회원가입 요청: 이메일={}", request.getEmail());
 
                 try {
-                        HeadquartersDto.SignupResponse response = headquartersService.signup(request);
-                        return ResponseEntity.status(HttpStatus.CREATED)
-                                        .body(AuthDto.ApiResponse.success(response, "본사 회원가입이 완료되었습니다."));
+                        Headquarters headquarters = headquartersService.register(request);
+                        HeadquartersSignupResponse response = HeadquartersSignupResponse.from(headquarters);
+
+                        return ResponseEntity.ok(AuthDto.ApiResponse.success(response, "본사 회원가입이 성공적으로 완료되었습니다."));
                 } catch (IllegalArgumentException e) {
                         log.warn("본사 회원가입 실패: {}", e.getMessage());
                         return ResponseEntity.badRequest()
-                                        .body(AuthDto.ApiResponse.error(e.getMessage(), "SIGNUP_FAILED"));
-                } catch (Exception e) {
-                        log.error("본사 회원가입 중 오류 발생", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(AuthDto.ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
+                                        .body(AuthDto.ApiResponse.error(e.getMessage(), "REGISTRATION_FAILED"));
+                } catch (IllegalStateException e) {
+                        log.warn("본사 회원가입 실패 (시스템 제한): {}", e.getMessage());
+                        return ResponseEntity.badRequest()
+                                        .body(AuthDto.ApiResponse.error(e.getMessage(), "SYSTEM_LIMIT_EXCEEDED"));
                 }
         }
 
-        @Operation(summary = "본사 로그인")
+        /**
+         * 본사 로그인
+         * 이메일 + 비밀번호 → JWT 쿠키 설정
+         */
         @PostMapping("/login")
+        @Operation(summary = "본사 로그인", description = "이메일 기반 로그인 후 JWT 쿠키 설정")
         public ResponseEntity<AuthDto.ApiResponse<AuthDto.TokenResponse>> login(
-                        @Valid @RequestBody HeadquartersDto.LoginRequest request,
+                        @Valid @RequestBody HeadquartersLoginRequest request,
                         HttpServletResponse response) {
 
-                log.info("본사 로그인 요청: {}", request.getEmail());
+                log.info("본사 로그인 요청: 이메일={}", request.getEmail());
 
                 try {
-                        AuthDto.TokenResponse tokenResponse = headquartersService.login(request);
+                        // 본사 인증
+                        Headquarters headquarters = headquartersService.login(request);
 
-                        // JWT 토큰을 쿠키에 설정
-                        setJwtCookie(response, tokenResponse.getAccessToken());
+                        // JWT 클레임 생성
+                        AuthDto.JwtClaims claims = AuthDto.JwtClaims.builder()
+                                        .accountNumber(headquarters.getHqAccountNumber())
+                                        .companyName(headquarters.getCompanyName())
+                                        .userType("HEADQUARTERS")
+                                        .level(null) // 본사는 레벨 없음
+                                        .treePath(null) // 본사는 트리 경로 없음
+                                        .headquartersId(headquarters.getId())
+                                        .userId(headquarters.getId())
+                                        .build();
 
-                        return ResponseEntity.ok(AuthDto.ApiResponse.success(tokenResponse, "로그인이 완료되었습니다."));
-                } catch (IllegalArgumentException e) {
+                        // 토큰 생성
+                        String accessToken = jwtUtil.generateAccessToken(claims);
+                        String refreshToken = jwtUtil.generateRefreshToken(headquarters.getHqAccountNumber());
+
+                        // JWT 쿠키 설정
+                        setJwtCookie(response, accessToken);
+
+                        // 응답 생성
+                        AuthDto.TokenResponse tokenResponse = AuthDto.TokenResponse.of(
+                                        accessToken,
+                                        refreshToken,
+                                        jwtUtil.getAccessTokenExpiration(),
+                                        headquarters.getHqAccountNumber(),
+                                        headquarters.getCompanyName(),
+                                        "HEADQUARTERS",
+                                        null);
+
+                        log.info("본사 로그인 성공: 계정번호={}", headquarters.getHqAccountNumber());
+
+                        return ResponseEntity.ok(AuthDto.ApiResponse.success(tokenResponse, "로그인이 성공적으로 완료되었습니다."));
+                } catch (Exception e) {
                         log.warn("본사 로그인 실패: {}", e.getMessage());
-                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                                        .body(AuthDto.ApiResponse.error(e.getMessage(), "LOGIN_FAILED"));
-                } catch (Exception e) {
-                        log.error("본사 로그인 중 오류 발생", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(AuthDto.ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
-                }
-        }
-
-        @Operation(summary = "본사 정보 조회", security = @SecurityRequirement(name = "JWT"))
-        @GetMapping("/{headquartersId}")
-        @PreAuthorize("hasRole('HEADQUARTERS') and @securityUtil.getCurrentHeadquartersId() == #headquartersId")
-        public ResponseEntity<AuthDto.ApiResponse<HeadquartersDto.Response>> getHeadquartersInfo(
-                        @PathVariable Long headquartersId) {
-
-                log.info("본사 정보 조회 요청: {}", headquartersId);
-
-                try {
-                        HeadquartersDto.Response response = headquartersService.getHeadquartersInfo(headquartersId);
-                        return ResponseEntity.ok(AuthDto.ApiResponse.success(response));
-                } catch (IllegalArgumentException e) {
-                        log.warn("본사 정보 조회 실패: {}", e.getMessage());
-                        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                                        .body(AuthDto.ApiResponse.error(e.getMessage(), "NOT_FOUND"));
-                } catch (Exception e) {
-                        log.error("본사 정보 조회 중 오류 발생", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(AuthDto.ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
-                }
-        }
-
-        @Operation(summary = "본사 정보 수정", security = @SecurityRequirement(name = "JWT"))
-        @PutMapping("/{headquartersId}")
-        @PreAuthorize("hasRole('HEADQUARTERS') and @securityUtil.getCurrentHeadquartersId() == #headquartersId")
-        public ResponseEntity<AuthDto.ApiResponse<HeadquartersDto.Response>> updateHeadquartersInfo(
-                        @PathVariable Long headquartersId,
-                        @Valid @RequestBody HeadquartersDto.UpdateRequest request) {
-
-                log.info("본사 정보 수정 요청: {}", headquartersId);
-
-                try {
-                        HeadquartersDto.Response response = headquartersService.updateHeadquartersInfo(headquartersId,
-                                        request);
-                        return ResponseEntity.ok(AuthDto.ApiResponse.success(response, "본사 정보가 수정되었습니다."));
-                } catch (IllegalArgumentException e) {
-                        log.warn("본사 정보 수정 실패: {}", e.getMessage());
-                        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                                        .body(AuthDto.ApiResponse.error(e.getMessage(), "NOT_FOUND"));
-                } catch (Exception e) {
-                        log.error("본사 정보 수정 중 오류 발생", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(AuthDto.ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
-                }
-        }
-
-        @Operation(summary = "이메일 중복 확인")
-        @GetMapping("/check-email")
-        public ResponseEntity<AuthDto.ApiResponse<Boolean>> checkEmailExists(
-                        @RequestParam String email) {
-
-                log.info("이메일 중복 확인 요청: {}", email);
-
-                try {
-                        boolean exists = headquartersService.isEmailExists(email);
-                        String message = exists ? "이미 사용 중인 이메일입니다." : "사용 가능한 이메일입니다.";
-                        return ResponseEntity.ok(AuthDto.ApiResponse.success(exists, message));
-                } catch (Exception e) {
-                        log.error("이메일 중복 확인 중 오류 발생", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(AuthDto.ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
-                }
-        }
-
-        @Operation(summary = "본사 상태 변경", security = @SecurityRequirement(name = "JWT"))
-        @PatchMapping("/{headquartersId}/status")
-        @PreAuthorize("hasRole('HEADQUARTERS')")
-        public ResponseEntity<AuthDto.ApiResponse<Void>> changeStatus(
-                        @PathVariable Long headquartersId,
-                        @RequestParam String status) {
-
-                log.info("본사 상태 변경 요청: {} -> {}", headquartersId, status);
-
-                try {
-                        // Enum 변환
-                        var companyStatus = com.nsmm.esg.auth_service.entity.Headquarters.CompanyStatus
-                                        .valueOf(status.toUpperCase());
-                        headquartersService.changeStatus(headquartersId, companyStatus);
-                        return ResponseEntity.ok(AuthDto.ApiResponse.success(null, "본사 상태가 변경되었습니다."));
-                } catch (IllegalArgumentException e) {
-                        log.warn("본사 상태 변경 실패: {}", e.getMessage());
                         return ResponseEntity.badRequest()
-                                        .body(AuthDto.ApiResponse.error(e.getMessage(), "INVALID_STATUS"));
-                } catch (Exception e) {
-                        log.error("본사 상태 변경 중 오류 발생", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(AuthDto.ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
+                                        .body(AuthDto.ApiResponse.error(e.getMessage(), "LOGIN_FAILED"));
                 }
         }
 
-        @Operation(summary = "로그아웃", security = @SecurityRequirement(name = "JWT"))
+        /**
+         * 본사 로그아웃
+         * JWT 쿠키 삭제
+         */
         @PostMapping("/logout")
-        @PreAuthorize("hasRole('HEADQUARTERS')")
-        public ResponseEntity<AuthDto.ApiResponse<Void>> logout(HttpServletResponse response) {
+        @Operation(summary = "본사 로그아웃", description = "JWT 쿠키 삭제")
+        public ResponseEntity<AuthDto.ApiResponse<String>> logout(HttpServletResponse response) {
+
                 log.info("본사 로그아웃 요청");
 
-                try {
-                        // JWT 쿠키 삭제
-                        clearJwtCookie(response);
-                        return ResponseEntity.ok(AuthDto.ApiResponse.success(null, "로그아웃이 완료되었습니다."));
-                } catch (Exception e) {
-                        log.error("로그아웃 중 오류 발생", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(AuthDto.ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
+                // JWT 쿠키 삭제
+                clearJwtCookie(response);
+
+                return ResponseEntity.ok(AuthDto.ApiResponse.success("로그아웃 완료", "로그아웃이 성공적으로 완료되었습니다."));
+        }
+
+        /**
+         * 이메일 중복 확인
+         */
+        @GetMapping("/check-email")
+        @Operation(summary = "이메일 중복 확인", description = "회원가입 시 이메일 중복 여부 확인")
+        public ResponseEntity<AuthDto.ApiResponse<Boolean>> checkEmail(@RequestParam String email) {
+
+                boolean isDuplicate = headquartersService.isEmailDuplicate(email);
+                String message = isDuplicate ? "이미 사용 중인 이메일입니다." : "사용 가능한 이메일입니다.";
+
+                return ResponseEntity.ok(AuthDto.ApiResponse.success(!isDuplicate, message));
+        }
+
+        /**
+         * 다음 생성될 본사 계정번호 미리 확인
+         */
+        @GetMapping("/next-account-number")
+        @Operation(summary = "다음 계정번호 확인", description = "다음에 생성될 본사 계정번호를 미리 확인")
+        public ResponseEntity<AuthDto.ApiResponse<String>> getNextAccountNumber() {
+
+                String nextAccountNumber = headquartersService.getNextAccountNumber();
+
+                if (nextAccountNumber != null) {
+                        return ResponseEntity.ok(AuthDto.ApiResponse.success(nextAccountNumber,
+                                        "다음 생성될 계정번호입니다."));
+                } else {
+                        return ResponseEntity.badRequest()
+                                        .body(AuthDto.ApiResponse.error("계정번호 생성에 실패했습니다.", "GENERATION_FAILED"));
                 }
+        }
+
+        /**
+         * 본사 계정번호 유효성 검증
+         */
+        @GetMapping("/validate-account-number")
+        @Operation(summary = "계정번호 유효성 검증", description = "본사 계정번호 형식 유효성을 검증")
+        public ResponseEntity<AuthDto.ApiResponse<Boolean>> validateAccountNumber(@RequestParam String accountNumber) {
+
+                boolean isValid = headquartersService.isValidAccountNumber(accountNumber);
+                String message = isValid ? "올바른 계정번호 형식입니다." : "잘못된 계정번호 형식입니다.";
+
+                return ResponseEntity.ok(AuthDto.ApiResponse.success(isValid, message));
         }
 
         /**
@@ -193,9 +185,7 @@ public class HeadquartersController {
                 jwtCookie.setHttpOnly(true); // XSS 방지
                 jwtCookie.setSecure(true); // HTTPS에서만 전송
                 jwtCookie.setPath("/"); // 모든 경로에서 사용
-                jwtCookie.setMaxAge(24 * 60 * 60); // 24시간 (초 단위)
-                jwtCookie.setAttribute("SameSite", "Strict"); // CSRF 방지
-
+                jwtCookie.setMaxAge((int) (jwtUtil.getAccessTokenExpiration() / 1000)); // 토큰 만료시간과 동일
                 response.addCookie(jwtCookie);
                 log.debug("JWT 쿠키 설정 완료");
         }
@@ -209,8 +199,6 @@ public class HeadquartersController {
                 jwtCookie.setSecure(true);
                 jwtCookie.setPath("/");
                 jwtCookie.setMaxAge(0); // 즉시 만료
-                jwtCookie.setAttribute("SameSite", "Strict");
-
                 response.addCookie(jwtCookie);
                 log.debug("JWT 쿠키 삭제 완료");
         }
