@@ -4,6 +4,7 @@ import com.nsmm.esg.auth_service.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -21,9 +22,14 @@ import java.util.Arrays;
 /**
  * Spring Security 설정
  * JWT 기반 인증/인가 시스템
+ * 
+ * 실제 컨트롤러 엔드포인트 기준:
+ * - HeadquartersController: /api/v1/headquarters/**
+ * - PartnerController: /api/v1/partners/**
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true) // @PreAuthorize 활성화
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -45,66 +51,84 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // CSRF 비활성화 (JWT 사용으로 불필요)
-            .csrf(AbstractHttpConfigurer::disable)
-            
-            // CORS 설정
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            
-            // 세션 비활성화 (JWT 사용)
-            .sessionManagement(session -> 
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            
-            // 요청 권한 설정
-            .authorizeHttpRequests(auth -> auth
-                // 공개 엔드포인트 (인증 불필요)
-                .requestMatchers(
-                    "/api/v1/headquarters/signup",
-                    "/api/v1/headquarters/login",
-                    "/api/v1/headquarters/check-email",
-                    "/api/v1/partners/login",
-                    "/actuator/**",
-                    // Swagger UI 관련 경로
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
-                    "/api-docs/**",
-                    "/v3/api-docs/**"
-                ).permitAll()
-                
-                // 본사 전용 엔드포인트
-                .requestMatchers(
-                    "/api/v1/headquarters/**",
-                    "/api/v1/partners/create",
-                    "/api/v1/partners/*/status",
-                    "/api/v1/partners/password-change-required"
-                ).hasRole("HEADQUARTERS")
-                
-                // 협력사 전용 엔드포인트
-                .requestMatchers(
-                    "/api/v1/partners/*/password",
-                    "/api/v1/partners/*/subtree"
-                ).hasRole("PARTNER")
-                
-                // 본사 또는 협력사 모두 접근 가능
-                .requestMatchers(
-                    "/api/v1/partners/**"
-                ).hasAnyRole("HEADQUARTERS", "PARTNER")
-                
-                // 나머지 모든 요청은 인증 필요
-                .anyRequest().authenticated()
-            )
-            
-            // H2 Console 사용을 위한 설정
-            .headers(headers -> headers.frameOptions().disable())
-            
-            // 예외 처리 설정
-            .exceptionHandling(exceptions -> exceptions
-                .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-                .accessDeniedHandler(jwtAccessDeniedHandler)
-            )
-            
-            // JWT 인증 필터 추가
-            .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+                // CSRF 비활성화 (JWT 사용으로 불필요)
+                .csrf(AbstractHttpConfigurer::disable)
+
+                // CORS 설정
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+                // 세션 비활성화 (JWT 사용)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // 요청 권한 설정
+                .authorizeHttpRequests(auth -> auth
+                        // === 공개 엔드포인트 (인증 불필요) ===
+                        .requestMatchers(
+                                // 본사 회원가입/로그인
+                                "/api/v1/headquarters/register",
+                                "/api/v1/headquarters/login",
+                                "/api/v1/headquarters/check-email",
+                                "/api/v1/headquarters/next-account-number",
+                                "/api/v1/headquarters/validate-account-number",
+
+                                // 협력사 로그인 및 공개 API
+                                "/api/v1/partners/login",
+                                "/api/v1/partners/check-email",
+
+                                // 시스템 관련
+                                "/actuator/**",
+
+                                // Swagger UI 관련 경로
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/api-docs/**",
+                                "/v3/api-docs/**")
+                        .permitAll()
+
+                        // === 본사 전용 엔드포인트 ===
+                        .requestMatchers(
+                                // 본사 관리 (로그아웃 제외)
+                                "/api/v1/headquarters/logout",
+
+                                // 1차 협력사 생성 (본사만 가능)
+                                "/api/v1/partners/first-level",
+
+                                // 본사의 협력사 조회
+                                "/api/v1/partners/headquarters/*/first-level",
+                                "/api/v1/partners/headquarters/*/unchanged-password")
+                        .hasRole("HEADQUARTERS")
+
+                        // === 협력사 전용 엔드포인트 ===
+                        .requestMatchers(
+                                // 하위 협력사 생성 (협력사만 가능)
+                                "/api/v1/partners/*/sub-partners",
+
+                                // 협력사 로그아웃
+                                "/api/v1/partners/logout")
+                        .hasRole("PARTNER")
+
+                        // === 인증된 사용자 공통 엔드포인트 ===
+                        .requestMatchers(
+                                // 협력사 정보 조회 (@PreAuthorize로 세부 권한 제어)
+                                "/api/v1/partners/*",
+
+                                // 하위 협력사 목록 조회
+                                "/api/v1/partners/*/children",
+
+                                // 초기 비밀번호 변경
+                                "/api/v1/partners/*/initial-password")
+                        .hasAnyRole("HEADQUARTERS", "PARTNER")
+
+                        // 나머지 모든 요청은 인증 필요
+                        .anyRequest().authenticated())
+
+                // 예외 처리 설정
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                        .accessDeniedHandler(jwtAccessDeniedHandler))
+
+                // JWT 인증 필터 추가
+                .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -123,25 +147,27 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        
-        // 허용할 Origin 설정
+
+        // 허용할 Origin 설정 (개발 환경)
         configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        
+
         // 허용할 HTTP 메서드
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+
         // 허용할 헤더
         configuration.setAllowedHeaders(Arrays.asList("*"));
-        
-        // 인증 정보 포함 허용
+
+        // 인증 정보 포함 허용 (쿠키 전송용)
         configuration.setAllowCredentials(true);
-        
+
         // 노출할 헤더
-        configuration.setExposedHeaders(Arrays.asList("Authorization"));
+        configuration.setExposedHeaders(Arrays.asList(
+                "Authorization", "X-Headquarters-Id"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
-        
+
         return source;
     }
-} 
+}

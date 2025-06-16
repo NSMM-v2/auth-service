@@ -26,6 +26,7 @@ public class PartnerAccountService {
   private final SecurityUtil securityUtil;
 
   // 한글 → 영문 이니셜 매핑
+  // 수정된 Map - 중복된 "신" 키 제거
   private static final Map<String, String> KOREAN_TO_ENGLISH = Map.ofEntries(
       Map.entry("김", "k"), Map.entry("이", "l"), Map.entry("박", "p"), Map.entry("최", "ch"),
       Map.entry("정", "j"), Map.entry("강", "ka"), Map.entry("윤", "y"), Map.entry("장", "ja"),
@@ -35,9 +36,9 @@ public class PartnerAccountService {
       Map.entry("양", "ya"), Map.entry("손", "son"), Map.entry("배", "b"), Map.entry("백", "ba"),
       Map.entry("허", "he"), Map.entry("유", "yu"), Map.entry("남", "n"), Map.entry("심", "si"),
       Map.entry("노", "no"), Map.entry("곽", "g"), Map.entry("성", "se"), Map.entry("차", "c"),
-      Map.entry("주", "ju"), Map.entry("우", "w"), Map.entry("구", "gu"), Map.entry("신", "shin"),
-      Map.entry("조", "cho"), Map.entry("마", "ma"), Map.entry("진", "jin"), Map.entry("민", "min"),
-      Map.entry("혁", "hye"), Map.entry("칠", "chil"), Map.entry("팔", "pal"));
+      Map.entry("주", "ju"), Map.entry("우", "w"), Map.entry("구", "gu"), Map.entry("조", "cho"),
+      Map.entry("마", "ma"), Map.entry("진", "jin"), Map.entry("민", "min"), Map.entry("혁", "hye"),
+      Map.entry("칠", "chil"), Map.entry("팔", "pal"));
 
   /**
    * 1차 협력사 계층적 아이디 생성

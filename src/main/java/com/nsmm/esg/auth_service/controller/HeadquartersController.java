@@ -37,7 +37,7 @@ public class HeadquartersController {
         private final JwtUtil jwtUtil;
 
         /**
-         * 본사 회원가입
+         * 본사 회원가
          * 계정번호 자동 생성 (HQ + YYYYMMDD + 순번), 이메일 중복 검사
          */
         @PostMapping("/register")
