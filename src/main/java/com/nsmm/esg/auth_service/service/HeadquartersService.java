@@ -29,7 +29,7 @@ public class HeadquartersService {
      * 본사 회원가입
      */
     @Transactional
-    public HeadquartersDto.Response signup(HeadquartersDto.SignupRequest request) {
+    public HeadquartersDto.SignupResponse signup(HeadquartersDto.SignupRequest request) {
         log.info("본사 회원가입 시작: {}", request.getEmail());
 
         // 이메일 중복 확인
@@ -37,16 +37,27 @@ public class HeadquartersService {
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다: " + request.getEmail());
         }
 
-        // 비밀번호 강도 검증
-        if (!passwordUtil.isValidPassword(request.getPassword())) {
-            throw new IllegalArgumentException("비밀번호는 8자 이상이며 대문자, 소문자, 숫자, 특수문자를 각각 포함해야 합니다.");
-        }
+        // 8자리 숫자 계정 번호 생성 (중복 확인)
+        String accountNumber;
+        int attempts = 0;
+        do {
+            accountNumber = Headquarters.generateNewAccountNumber();
+            attempts++;
+            if (attempts > 10) {
+                throw new RuntimeException("계정 번호 생성에 실패했습니다. 잠시 후 다시 시도해주세요.");
+            }
+        } while (headquartersRepository.existsByAccountNumber(accountNumber));
+
+        // 회사명 기반 친화적 비밀번호 생성 (최초 설정 시)
+        String friendlyPassword = passwordUtil.generateCompanyBasedPassword(request.getCompanyName());
+        String encodedPassword = passwordUtil.encodePassword(friendlyPassword);
 
         // 본사 엔티티 생성
         Headquarters headquarters = Headquarters.builder()
+                .accountNumber(accountNumber)
                 .companyName(request.getCompanyName())
                 .email(request.getEmail())
-                .password(passwordUtil.encodePassword(request.getPassword()))
+                .password(encodedPassword)
                 .name(request.getName())
                 .department(request.getDepartment())
                 .position(request.getPosition())
@@ -55,16 +66,16 @@ public class HeadquartersService {
                 .status(Headquarters.CompanyStatus.ACTIVE)
                 .build();
 
-        // 저장
         Headquarters savedHeadquarters = headquartersRepository.save(headquarters);
-        
-        log.info("본사 회원가입 완료: {} (ID: {})", savedHeadquarters.getEmail(), savedHeadquarters.getId());
-        
-        return HeadquartersDto.Response.from(savedHeadquarters);
+
+        log.info("본사 회원가입 완료: {} (계정번호: {})", savedHeadquarters.getEmail(),
+                savedHeadquarters.getAccountNumber());
+
+        return HeadquartersDto.SignupResponse.from(savedHeadquarters, friendlyPassword);
     }
 
     /**
-     * 본사 로그인
+     * 본사 로그인 (이메일 기반)
      */
     public AuthDto.TokenResponse login(HeadquartersDto.LoginRequest request) {
         log.info("본사 로그인 시도: {}", request.getEmail());
@@ -78,32 +89,32 @@ public class HeadquartersService {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
-        // JWT 클레임 생성
+        // JWT 클레임 생성 (8자리 숫자 계정 번호 사용)
         AuthDto.JwtClaims claims = AuthDto.JwtClaims.builder()
-                .accountNumber(headquarters.generateAccountNumber())
+                .accountNumber(headquarters.getAccountNumber() != null ? headquarters.getAccountNumber()
+                        : headquarters.generateAccountNumber())
                 .companyName(headquarters.getCompanyName())
                 .userType("HEADQUARTERS")
-                .level(null)  // 본사는 레벨 없음
-                .treePath(null)  // 본사는 트리 경로 없음
+                .level(null) // 본사는 레벨 없음
+                .treePath(null) // 본사는 트리 경로 없음
                 .headquartersId(headquarters.getId())
                 .userId(headquarters.getId())
                 .build();
 
         // 토큰 생성
         String accessToken = jwtUtil.generateAccessToken(claims);
-        String refreshToken = jwtUtil.generateRefreshToken(headquarters.generateAccountNumber());
+        String refreshToken = jwtUtil.generateRefreshToken(claims.getAccountNumber());
 
-        log.info("본사 로그인 성공: {} (계정번호: {})", headquarters.getEmail(), headquarters.generateAccountNumber());
+        log.info("본사 로그인 성공: {} (계정번호: {})", headquarters.getEmail(), claims.getAccountNumber());
 
         return AuthDto.TokenResponse.of(
                 accessToken,
                 refreshToken,
                 jwtUtil.getAccessTokenExpiration(),
-                headquarters.generateAccountNumber(),
+                claims.getAccountNumber(),
                 headquarters.getCompanyName(),
                 "HEADQUARTERS",
-                null
-        );
+                null);
     }
 
     /**
@@ -135,13 +146,12 @@ public class HeadquartersService {
                 request.getDepartment(),
                 request.getPosition(),
                 request.getPhone(),
-                request.getAddress()
-        );
+                request.getAddress());
 
         Headquarters savedHeadquarters = headquartersRepository.save(updatedHeadquarters);
-        
+
         log.info("본사 정보 수정 완료: {}", savedHeadquarters.getId());
-        
+
         return HeadquartersDto.Response.from(savedHeadquarters);
     }
 
@@ -164,8 +174,16 @@ public class HeadquartersService {
 
         Headquarters updatedHeadquarters = headquarters.changeStatus(status);
         headquartersRepository.save(updatedHeadquarters);
-        
+
         log.info("본사 상태 변경 완료: {} -> {}", headquartersId, status);
+    }
+
+    /**
+     * ID로 본사 조회 (내부용)
+     */
+    public Headquarters findById(Long headquartersId) {
+        return headquartersRepository.findById(headquartersId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 본사입니다: " + headquartersId));
     }
 
     /**
@@ -182,4 +200,4 @@ public class HeadquartersService {
             throw new IllegalArgumentException("잘못된 계정 번호 형식입니다: " + accountNumber);
         }
     }
-} 
+}

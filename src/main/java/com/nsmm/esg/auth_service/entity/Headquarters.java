@@ -10,24 +10,21 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 본사 엔티티
+ * 본사 엔티티 - ESG 프로젝트 최상위 조직
  * 
- * ESG 프로젝트의 최상위 조직으로, 다음과 같은 특징을 가집니다:
- * - 최초 회원가입 주체이며 시스템의 루트 권한을 보유
- * - 모든 협력사 데이터 조회 및 관리 권한 보유
- * - 협력사 계정 생성 및 권한 부여 담당
- * - AWS IAM 스타일의 계층적 권한 관리 시스템의 최상위 레벨
- * 
- * 계정 번호 형식: HQ001, HQ002, ...
- * 
- * @author ESG Development Team
- * @version 1.0
- * @since 2024-12-16
+ * 특징: 루트 권한 보유, 모든 협력사 관리, 8자리 숫자 계정 번호
+ * 계정 형태: 8자리 숫자 (예: 10000001, 10000002, ...)
+ * 로그인: 이메일 주소 사용
  */
 @Entity
-@Table(name = "headquarters")
+@Table(name = "headquarters", indexes = {
+        @Index(name = "idx_email", columnList = "email"),
+        @Index(name = "idx_status", columnList = "status"),
+        @Index(name = "idx_account_number", columnList = "account_number")
+})
 @Getter
 @Builder
 @NoArgsConstructor
@@ -35,169 +32,114 @@ import java.time.LocalDateTime;
 @EntityListeners(AuditingEntityListener.class)
 public class Headquarters {
 
-    /**
-     * 본사 고유 식별자
-     * 자동 증가하는 기본키로 계정 번호 생성에 사용됩니다.
-     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long id; // 본사 고유 식별자
 
-    /**
-     * 회사명
-     * 본사의 공식 회사명으로 필수 입력 항목입니다.
-     * ESG 보고서 및 협력사 관리에서 식별자로 사용됩니다.
-     */
+    @Column(name = "account_number", unique = true, length = 8)
+    private String accountNumber; // 8자리 숫자 계정 번호 (10000001)
+
     @Column(name = "company_name", nullable = false)
-    private String companyName;
+    private String companyName; // 회사명
 
-    /**
-     * 이메일 주소
-     * 로그인 ID로 사용되며 시스템 내에서 유일해야 합니다.
-     * 비밀번호 재설정 및 중요 알림 발송에 사용됩니다.
-     */
     @Column(name = "email", nullable = false, unique = true)
-    private String email;
+    private String email; // 로그인 ID
 
-    /**
-     * 암호화된 비밀번호
-     * BCrypt 알고리즘으로 암호화되어 저장됩니다.
-     * 보안상 평문으로 저장되지 않으며 단방향 암호화를 사용합니다.
-     */
     @Column(name = "password", nullable = false)
-    private String password;
+    private String password; // 암호화된 비밀번호
 
-    /**
-     * 담당자 이름
-     * 본사의 ESG 담당자 또는 시스템 관리자 이름입니다.
-     * 협력사와의 소통 및 문의 처리 시 연락 담당자로 사용됩니다.
-     */
     @Column(name = "name", nullable = false, length = 100)
-    private String name;
+    private String name; // 담당자명
 
-    /**
-     * 담당자 부서
-     * 담당자가 소속된 부서명입니다.
-     * ESG 관련 업무 담당 부서를 명시합니다.
-     */
     @Column(name = "department", length = 100)
-    private String department;
+    private String department; // 부서
 
-    /**
-     * 담당자 직급
-     * 담당자의 직급 또는 직책입니다.
-     * 협력사와의 소통 시 권한 수준을 파악하는데 사용됩니다.
-     */
     @Column(name = "position", length = 50)
-    private String position;
+    private String position; // 직급
 
-    /**
-     * 연락처
-     * 본사의 대표 전화번호 또는 담당자 연락처입니다.
-     * 긴급 상황 발생 시 연락용으로 사용됩니다.
-     */
     @Column(name = "phone", length = 20)
-    private String phone;
+    private String phone; // 연락처
 
-    /**
-     * 주소
-     * 본사의 사업장 주소로 TEXT 타입으로 저장됩니다.
-     * ESG 보고서의 사업장 정보 및 협력사 관리에 활용됩니다.
-     */
     @Column(name = "address", columnDefinition = "TEXT")
-    private String address;
+    private String address; // 주소
 
-    /**
-     * 회사 상태
-     * 본사 계정의 활성화 상태를 나타냅니다.
-     * 기본값은 ACTIVE이며, 관리자에 의해 변경될 수 있습니다.
-     */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     @Builder.Default
-    private CompanyStatus status = CompanyStatus.ACTIVE;
+    private CompanyStatus status = CompanyStatus.ACTIVE; // 회사 상태
 
-    /**
-     * 생성 일시
-     * 본사 계정이 최초 생성된 시점을 기록합니다.
-     * JPA Auditing을 통해 자동으로 설정되며 수정되지 않습니다.
-     */
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt; // 생성 일시
 
-    /**
-     * 최종 수정 일시
-     * 본사 정보가 마지막으로 수정된 시점을 기록합니다.
-     * JPA Auditing을 통해 자동으로 업데이트됩니다.
-     */
     @LastModifiedDate
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private LocalDateTime updatedAt; // 수정 일시
 
     /**
      * 회사 상태 열거형
-     * 
-     * ACTIVE: 정상 운영 중인 상태 (기본값)
-     * INACTIVE: 비활성화된 상태 (로그인 불가)
-     * SUSPENDED: 일시 정지된 상태 (관리자에 의한 제재)
+     * ACTIVE: 활성, INACTIVE: 비활성, SUSPENDED: 정지
      */
     public enum CompanyStatus {
-        /**
-         * 활성 상태 - 정상적으로 시스템을 이용할 수 있는 상태
-         */
-        ACTIVE,
-        
-        /**
-         * 비활성 상태 - 사용자가 직접 비활성화하거나 장기간 미사용으로 인한 상태
-         */
-        INACTIVE,
-        
-        /**
-         * 정지 상태 - 관리자에 의해 강제로 정지된 상태
-         */
-        SUSPENDED
+        ACTIVE, INACTIVE, SUSPENDED
     }
 
     /**
-     * 본사 계정 번호 생성
+     * 본사 8자리 숫자 계정 번호 생성 (규칙적이지만 예측 어려운 형태)
      * 
-     * AWS IAM 스타일의 계정 번호를 생성합니다.
-     * 형식: HQ{본사ID:3자리 zero-padding}
-     * 예시: HQ001, HQ002, HQ010, HQ100
+     * 규칙:
+     * - 첫 2자리: 본사 구분 코드 (10~19)
+     * - 중간 4자리: 연도 + 월 (2024년 12월 → 2412)
+     * - 마지막 2자리: 랜덤 (00~99)
      * 
-     * @return 생성된 계정 번호 문자열
-     * @throws IllegalStateException ID가 null인 경우 발생
+     * 예시: 12241201, 15241203, 18241212
+     * 
+     * @return 8자리 숫자 문자열
+     */
+    public static String generateNewAccountNumber() {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        // 첫 2자리: 본사 구분 코드 (10~19)
+        int companyCode = random.nextInt(10, 20);
+
+        // 중간 4자리: 현재 연도 마지막 2자리 + 월 + 일의 일부
+        java.time.LocalDate now = java.time.LocalDate.now();
+        int year = now.getYear() % 100; // 24 (2024년)
+        int month = now.getMonthValue(); // 01~12
+        String yearMonth = String.format("%02d%02d", year, month);
+
+        // 마지막 2자리: 랜덤
+        int randomSuffix = random.nextInt(0, 100);
+
+        return companyCode + yearMonth + String.format("%02d", randomSuffix);
+    }
+
+    /**
+     * 본사 계정 번호 반환 (인스턴스 메서드)
+     * 저장된 계정 번호가 있으면 반환, 없으면 ID 기반으로 생성
      */
     public String generateAccountNumber() {
-        if (this.id == null) {
-            throw new IllegalStateException("본사 ID가 설정되지 않았습니다. 엔티티를 먼저 저장해주세요.");
+        if (this.accountNumber != null) {
+            return this.accountNumber;
         }
-        return String.format("HQ%03d", this.id);
+        // 기존 방식 호환성을 위해 유지 (권장하지 않음)
+        if (this.id == null) {
+            throw new IllegalStateException("본사 ID가 설정되지 않았습니다.");
+        }
+        return String.format("%08d", 10000000 + this.id); // 10000001, 10000002, ...
     }
 
     /**
      * 본사 정보 업데이트 (불변성 보장)
-     * 
-     * 엔티티의 불변성을 보장하기 위해 새로운 인스턴스를 생성하여 반환합니다.
-     * null 값이 전달된 필드는 기존 값을 유지합니다.
-     * 이메일과 비밀번호는 보안상 이 메서드로 변경할 수 없습니다.
-     * 
-     * @param companyName 새로운 회사명 (null이면 기존 값 유지)
-     * @param name 새로운 담당자명 (null이면 기존 값 유지)
-     * @param department 새로운 부서명 (null이면 기존 값 유지)
-     * @param position 새로운 직급 (null이면 기존 값 유지)
-     * @param phone 새로운 연락처 (null이면 기존 값 유지)
-     * @param address 새로운 주소 (null이면 기존 값 유지)
-     * @return 업데이트된 새로운 Headquarters 인스턴스
+     * null 값은 기존 값 유지, 이메일/비밀번호는 별도 메서드 사용
      */
-    public Headquarters updateInfo(String companyName, String name, String department, 
-                                 String position, String phone, String address) {
+    public Headquarters updateInfo(String companyName, String name, String department,
+            String position, String phone, String address) {
         return Headquarters.builder()
                 .id(this.id)
                 .companyName(companyName != null ? companyName : this.companyName)
-                .email(this.email)  // 이메일은 변경 불가 (보안상 이유)
-                .password(this.password)  // 비밀번호는 별도 메서드로 변경
+                .email(this.email)
+                .password(this.password)
                 .name(name != null ? name : this.name)
                 .department(department != null ? department : this.department)
                 .position(position != null ? position : this.position)
@@ -211,19 +153,13 @@ public class Headquarters {
 
     /**
      * 비밀번호 변경 (불변성 보장)
-     * 
-     * 보안을 위해 비밀번호만 별도로 변경하는 메서드입니다.
-     * 전달받은 비밀번호는 이미 암호화된 상태여야 합니다.
-     * 
-     * @param newPassword 새로운 암호화된 비밀번호
-     * @return 비밀번호가 변경된 새로운 Headquarters 인스턴스
-     * @throws IllegalArgumentException 비밀번호가 null이거나 빈 문자열인 경우
+     * 이미 암호화된 비밀번호를 전달받아 변경
      */
     public Headquarters changePassword(String newPassword) {
         if (newPassword == null || newPassword.trim().isEmpty()) {
             throw new IllegalArgumentException("비밀번호는 null이거나 빈 문자열일 수 없습니다.");
         }
-        
+
         return Headquarters.builder()
                 .id(this.id)
                 .companyName(this.companyName)
@@ -242,19 +178,13 @@ public class Headquarters {
 
     /**
      * 상태 변경 (불변성 보장)
-     * 
-     * 관리자에 의해 본사 계정의 상태를 변경할 때 사용됩니다.
-     * 상태 변경은 시스템 로그에 기록되어야 하므로 신중하게 사용해야 합니다.
-     * 
-     * @param newStatus 새로운 회사 상태
-     * @return 상태가 변경된 새로운 Headquarters 인스턴스
-     * @throws IllegalArgumentException 상태가 null인 경우
+     * 관리자 권한으로 계정 상태 변경
      */
     public Headquarters changeStatus(CompanyStatus newStatus) {
         if (newStatus == null) {
             throw new IllegalArgumentException("회사 상태는 null일 수 없습니다.");
         }
-        
+
         return Headquarters.builder()
                 .id(this.id)
                 .companyName(this.companyName)
@@ -272,18 +202,14 @@ public class Headquarters {
     }
 
     /**
-     * 본사 계정이 활성 상태인지 확인
-     * 
-     * @return 활성 상태이면 true, 그렇지 않으면 false
+     * 활성 상태 확인
      */
     public boolean isActive() {
         return CompanyStatus.ACTIVE.equals(this.status);
     }
 
     /**
-     * 본사 계정이 정지 상태인지 확인
-     * 
-     * @return 정지 상태이면 true, 그렇지 않으면 false
+     * 정지 상태 확인
      */
     public boolean isSuspended() {
         return CompanyStatus.SUSPENDED.equals(this.status);

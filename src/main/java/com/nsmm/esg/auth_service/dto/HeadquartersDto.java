@@ -26,32 +26,32 @@ public class HeadquartersDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class SignupRequest {
-        
+
         @NotBlank(message = "회사명은 필수입니다")
         @Size(max = 255, message = "회사명은 255자를 초과할 수 없습니다")
         private String companyName;
-        
+
         @NotBlank(message = "이메일은 필수입니다")
         @Email(message = "올바른 이메일 형식이 아닙니다")
         private String email;
-        
+
         @NotBlank(message = "비밀번호는 필수입니다")
         @Size(min = 8, max = 100, message = "비밀번호는 8자 이상 100자 이하여야 합니다")
         private String password;
-        
+
         @NotBlank(message = "담당자명은 필수입니다")
         @Size(max = 100, message = "담당자명은 100자를 초과할 수 없습니다")
         private String name;
-        
+
         @Size(max = 100, message = "부서명은 100자를 초과할 수 없습니다")
         private String department;
-        
+
         @Size(max = 50, message = "직급은 50자를 초과할 수 없습니다")
         private String position;
-        
+
         @Size(max = 20, message = "전화번호는 20자를 초과할 수 없습니다")
         private String phone;
-        
+
         private String address;
     }
 
@@ -64,11 +64,11 @@ public class HeadquartersDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class LoginRequest {
-        
+
         @NotBlank(message = "이메일은 필수입니다")
         @Email(message = "올바른 이메일 형식이 아닙니다")
         private String email;
-        
+
         @NotBlank(message = "비밀번호는 필수입니다")
         private String password;
     }
@@ -82,7 +82,7 @@ public class HeadquartersDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Response {
-        
+
         private Long id;
         private String accountNumber;
         private String companyName;
@@ -95,7 +95,7 @@ public class HeadquartersDto {
         private Headquarters.CompanyStatus status;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
-        
+
         /**
          * Entity를 DTO로 변환
          */
@@ -126,22 +126,68 @@ public class HeadquartersDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class UpdateRequest {
-        
+
         @Size(max = 255, message = "회사명은 255자를 초과할 수 없습니다")
         private String companyName;
-        
+
         @Size(max = 100, message = "담당자명은 100자를 초과할 수 없습니다")
         private String name;
-        
+
         @Size(max = 100, message = "부서명은 100자를 초과할 수 없습니다")
         private String department;
-        
+
         @Size(max = 50, message = "직급은 50자를 초과할 수 없습니다")
         private String position;
-        
+
         @Size(max = 20, message = "전화번호는 20자를 초과할 수 없습니다")
         private String phone;
-        
+
         private String address;
     }
-} 
+
+    /**
+     * 본사 회원가입 응답 DTO (임시 비밀번호 포함)
+     */
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SignupResponse {
+
+        private Long id;
+        private String accountNumber;
+        private String companyName;
+        private String email;
+        private String name;
+        private String department;
+        private String position;
+        private String phone;
+        private String address;
+        private String temporaryPassword; // 회사명 기반 친화적 비밀번호
+        private Headquarters.CompanyStatus status;
+        private LocalDateTime createdAt;
+        private String message;
+
+        /**
+         * Entity와 임시 비밀번호를 SignupResponse DTO로 변환
+         */
+        public static SignupResponse from(Headquarters headquarters, String temporaryPassword) {
+            return SignupResponse.builder()
+                    .id(headquarters.getId())
+                    .accountNumber(headquarters.getAccountNumber())
+                    .companyName(headquarters.getCompanyName())
+                    .email(headquarters.getEmail())
+                    .name(headquarters.getName())
+                    .department(headquarters.getDepartment())
+                    .position(headquarters.getPosition())
+                    .phone(headquarters.getPhone())
+                    .address(headquarters.getAddress())
+                    .temporaryPassword(temporaryPassword)
+                    .status(headquarters.getStatus())
+                    .createdAt(headquarters.getCreatedAt())
+                    .message("본사 계정이 성공적으로 생성되었습니다. 임시 비밀번호로 로그인 후 비밀번호를 변경해주세요.")
+                    .build();
+        }
+    }
+}

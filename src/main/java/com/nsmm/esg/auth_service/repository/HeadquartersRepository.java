@@ -25,6 +25,11 @@ public interface HeadquartersRepository extends JpaRepository<Headquarters, Long
     boolean existsByEmail(String email);
 
     /**
+     * 계정 번호 중복 확인
+     */
+    boolean existsByAccountNumber(String accountNumber);
+
+    /**
      * 활성 상태인 본사 조회
      */
     @Query("SELECT h FROM Headquarters h WHERE h.email = :email AND h.status = 'ACTIVE'")
@@ -35,4 +40,4 @@ public interface HeadquartersRepository extends JpaRepository<Headquarters, Long
      */
     @Query("SELECT h.id FROM Headquarters h WHERE h.id = :id")
     Optional<Long> findIdById(@Param("id") Long id);
-} 
+}

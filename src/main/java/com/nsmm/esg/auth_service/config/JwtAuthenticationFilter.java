@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * JWT 인증 필터
- * 모든 요청에서 JWT 토큰을 검증하고 인증 정보를 설정
+ * JWT 인증 필터 - 쿠키 기반 JWT 토큰 검증만 지원
+ * 모든 요청에서 쿠키의 JWT 토큰을 검증하고 인증 정보를 설정
  */
 @Slf4j
 @Component
@@ -30,62 +30,40 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private static final String AUTHORIZATION_HEADER = "Authorization";
-    private static final String BEARER_PREFIX = "Bearer ";
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, 
-                                  HttpServletResponse response, 
-                                  FilterChain filterChain) throws ServletException, IOException {
-        
+    protected void doFilterInternal(HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
+
         try {
-            // JWT 토큰 추출
-            String jwt = getJwtFromRequest(request);
-            
+            // 쿠키에서 JWT 토큰 추출
+            String jwt = getJwtFromCookie(request);
+
             if (StringUtils.hasText(jwt) && jwtUtil.validateToken(jwt)) {
                 // JWT에서 사용자 정보 추출
                 AuthDto.JwtClaims claims = jwtUtil.getAllClaimsFromToken(jwt);
-                
+
                 // 권한 설정
                 String role = "ROLE_" + claims.getUserType(); // ROLE_HEADQUARTERS 또는 ROLE_PARTNER
                 List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(role));
-                
+
                 // 인증 객체 생성
-                UsernamePasswordAuthenticationToken authentication = 
-                    new UsernamePasswordAuthenticationToken(claims, null, authorities);
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(claims,
+                        null, authorities);
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                
+
                 // SecurityContext에 인증 정보 설정
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-                
-                log.debug("JWT 인증 성공: {} ({})", claims.getAccountNumber(), claims.getUserType());
+
+                log.debug("JWT 쿠키 인증 성공: {} ({})", claims.getAccountNumber(), claims.getUserType());
             }
         } catch (Exception e) {
-            log.error("JWT 인증 처리 중 오류 발생: {}", e.getMessage());
+            log.error("JWT 쿠키 인증 처리 중 오류 발생: {}", e.getMessage());
             SecurityContextHolder.clearContext();
         }
-        
-        filterChain.doFilter(request, response);
-    }
 
-    /**
-     * Request에서 JWT 토큰 추출
-     * 우선순위: 1. 쿠키, 2. Authorization 헤더
-     */
-    private String getJwtFromRequest(HttpServletRequest request) {
-        // 1. 쿠키에서 JWT 토큰 추출 시도
-        String jwtFromCookie = getJwtFromCookie(request);
-        if (StringUtils.hasText(jwtFromCookie)) {
-            return jwtFromCookie;
-        }
-        
-        // 2. Authorization 헤더에서 JWT 토큰 추출 시도
-        String bearerToken = request.getHeader(AUTHORIZATION_HEADER);
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(BEARER_PREFIX)) {
-            return bearerToken.substring(BEARER_PREFIX.length());
-        }
-        
-        return null;
+        filterChain.doFilter(request, response);
     }
 
     /**
@@ -108,13 +86,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getRequestURI();
-        
+
         // 공개 API는 JWT 검증 제외
         return path.startsWith("/api/v1/headquarters/signup") ||
-               path.startsWith("/api/v1/headquarters/login") ||
-               path.startsWith("/api/v1/headquarters/check-email") ||
-               path.startsWith("/api/v1/partners/login") ||
-               path.startsWith("/actuator/") ||
-               path.startsWith("/h2-console/");
+                path.startsWith("/api/v1/headquarters/login") ||
+                path.startsWith("/api/v1/headquarters/check-email") ||
+                path.startsWith("/api/v1/partners/login") ||
+                path.startsWith("/api/v1/partners/create-auth-account") || // 새로운 파트너 계정 생성 API
+                path.startsWith("/actuator/") ||
+                path.startsWith("/h2-console/") ||
+                path.startsWith("/swagger-ui/") ||
+                path.startsWith("/v3/api-docs");
     }
-} 
+}

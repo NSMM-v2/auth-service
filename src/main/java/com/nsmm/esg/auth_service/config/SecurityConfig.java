@@ -63,7 +63,12 @@ public class SecurityConfig {
                     "/api/v1/headquarters/login",
                     "/api/v1/headquarters/check-email",
                     "/api/v1/partners/login",
-                    "/actuator/**"
+                    "/actuator/**",
+                    // Swagger UI 관련 경로
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/api-docs/**",
+                    "/v3/api-docs/**"
                 ).permitAll()
                 
                 // 본사 전용 엔드포인트
