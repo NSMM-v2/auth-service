@@ -11,7 +11,7 @@
 
 ## 📋 프로젝트 개요
 
-ESG Auth Service는 **대기업과 다단계 협력사 간의 복잡한 권한 관리**를 해결하기 위해 설계된 엔터프라이즈급 인증 시스템입니다.
+ESG Auth Service는 **대기업과 다단계 협력사 간의 복잡한 권한 관리**를 해결하기 위해 설계된 인증 시스템입니다.
 
 ### 🎯 핵심 해결 과제
 
@@ -430,28 +430,6 @@ mysql -u root -p -e "CREATE DATABASE esg_auth;"
 open http://localhost:8081/swagger-ui.html
 ```
 
-## 🚀 향후 확장 계획
-
-### Phase 1 - 현재 구현 완료 ✅
-
-- [x] 계층적 조직 관리
-- [x] JWT 인증/인가
-- [x] 다중 로그인 방식
-- [x] API Gateway 연동
-
-### Phase 2 - 진행 중 🔄
-
-- [ ] Redis 캐싱 도입
-- [ ] 실시간 알림 시스템
-- [ ] OAuth2 소셜 로그인
-
-### Phase 3 - 계획 중 📋
-
-- [ ] RBAC (Role-Based Access Control)
-- [ ] 감사 로그 시스템
-- [ ] 다중 테넌트 지원
-- [ ] GraphQL API 지원
-
 ## 📞 기술 문의
 
 이 프로젝트는 **엔터프라이즈급 인증 시스템**의 복잡한 요구사항을 해결하기 위해 최신 Spring 생태계와 마이크로서비스 아키텍처를 활용했습니다.
@@ -464,5 +442,3 @@ open http://localhost:8081/swagger-ui.html
 - 🛠️ **유지보수성**: Spring Cloud 기반 마이크로서비스 아키텍처
 
 ---
-
-_이 프로젝트는 실제 대기업의 ESG 공시 시스템 요구사항을 바탕으로 설계되었습니다._
