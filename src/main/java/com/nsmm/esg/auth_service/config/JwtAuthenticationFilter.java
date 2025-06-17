@@ -88,14 +88,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
 
         // 공개 API는 JWT 검증 제외
-        return path.startsWith("/api/v1/headquarters/signup") ||
+        return path.startsWith("/api/v1/headquarters/register") ||
                 path.startsWith("/api/v1/headquarters/login") ||
                 path.startsWith("/api/v1/headquarters/check-email") ||
+                path.startsWith("/api/v1/headquarters/next-account-number") ||
+                path.startsWith("/api/v1/headquarters/validate-account-number") ||
                 path.startsWith("/api/v1/partners/login") ||
-                path.startsWith("/api/v1/partners/create-auth-account") || // 새로운 파트너 계정 생성 API
+                path.startsWith("/api/v1/partners/check-email") ||
                 path.startsWith("/actuator/") ||
                 path.startsWith("/h2-console/") ||
                 path.startsWith("/swagger-ui/") ||
-                path.startsWith("/v3/api-docs");
+                path.startsWith("/v3/api-docs") ||
+                path.startsWith("/api-docs");
     }
 }

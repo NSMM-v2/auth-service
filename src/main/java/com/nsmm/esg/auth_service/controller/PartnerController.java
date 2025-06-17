@@ -11,6 +11,7 @@ import com.nsmm.esg.auth_service.entity.Partner;
 import com.nsmm.esg.auth_service.service.HeadquartersService;
 import com.nsmm.esg.auth_service.service.PartnerService;
 import com.nsmm.esg.auth_service.util.JwtUtil;
+import com.nsmm.esg.auth_service.util.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,21 +46,25 @@ public class PartnerController {
         private final PartnerService partnerService;
         private final HeadquartersService headquartersService;
         private final JwtUtil jwtUtil;
+        private final SecurityUtil securityUtil;
 
         /**
          * 1차 협력사 생성 (본사에서 생성)
+         * JWT에서 본사 ID를 안전하게 추출하여 사용
          */
         @PostMapping("/first-level")
         @Operation(summary = "1차 협력사 생성", description = "본사에서 1차 협력사를 생성합니다")
         @PreAuthorize("hasRole('HEADQUARTERS')")
         @SecurityRequirement(name = "JWT")
         public ResponseEntity<AuthDto.ApiResponse<PartnerCreateResponse>> createFirstLevelPartner(
-                        @RequestHeader("X-Headquarters-Id") Long headquartersId,
                         @Valid @RequestBody PartnerCreateRequest request) {
 
-                log.info("1차 협력사 생성 요청: 본사ID={}, 회사명={}", headquartersId, request.getCompanyName());
-
                 try {
+                        // JWT에서 안전하게 본사 ID 추출
+                        Long headquartersId = securityUtil.getCurrentHeadquartersId();
+
+                        log.info("1차 협력사 생성 요청: 본사ID={}, 회사명={}", headquartersId, request.getCompanyName());
+
                         // 본사 조회
                         Headquarters headquarters = headquartersService.findById(headquartersId)
                                         .orElseThrow(() -> new IllegalArgumentException(
@@ -84,10 +89,11 @@ public class PartnerController {
 
         /**
          * 하위 협력사 생성 (상위 협력사에서 생성)
+         * JWT에서 현재 사용자 ID를 추출하여 권한 검증
          */
         @PostMapping("/{parentId}/sub-partners")
         @Operation(summary = "하위 협력사 생성", description = "상위 협력사에서 하위 협력사를 생성합니다")
-        @PreAuthorize("hasRole('PARTNER')")
+        @PreAuthorize("hasRole('PARTNER') and @securityUtil.getCurrentUserId() == #parentId")
         @SecurityRequirement(name = "JWT")
         public ResponseEntity<AuthDto.ApiResponse<PartnerCreateResponse>> createSubPartner(
                         @PathVariable Long parentId,
@@ -208,17 +214,20 @@ public class PartnerController {
 
         /**
          * 본사별 1차 협력사 목록 조회
+         * JWT에서 본사 ID를 추출하여 권한 검증
          */
-        @GetMapping("/headquarters/{headquartersId}/first-level")
+        @GetMapping("/first-level")
         @Operation(summary = "1차 협력사 목록 조회", description = "본사의 1차 협력사 목록을 조회합니다")
-        @PreAuthorize("hasRole('HEADQUARTERS') and @securityUtil.getCurrentHeadquartersId() == #headquartersId")
+        @PreAuthorize("hasRole('HEADQUARTERS')")
         @SecurityRequirement(name = "JWT")
-        public ResponseEntity<AuthDto.ApiResponse<List<PartnerResponse>>> getFirstLevelPartners(
-                        @PathVariable Long headquartersId) {
-
-                log.info("1차 협력사 목록 조회 요청: 본사 ID {}", headquartersId);
+        public ResponseEntity<AuthDto.ApiResponse<List<PartnerResponse>>> getFirstLevelPartners() {
 
                 try {
+                        // JWT에서 안전하게 본사 ID 추출
+                        Long headquartersId = securityUtil.getCurrentHeadquartersId();
+
+                        log.info("1차 협력사 목록 조회 요청: 본사 ID {}", headquartersId);
+
                         List<Partner> partners = partnerService.findFirstLevelPartners(headquartersId);
                         List<PartnerResponse> response = partners.stream()
                                         .map(PartnerResponse::from)
@@ -295,17 +304,20 @@ public class PartnerController {
 
         /**
          * 비밀번호 미변경 협력사 목록 조회
+         * JWT에서 본사 ID를 추출하여 권한 검증
          */
-        @GetMapping("/headquarters/{headquartersId}/unchanged-password")
+        @GetMapping("/unchanged-password")
         @Operation(summary = "비밀번호 미변경 협력사 목록", description = "비밀번호를 아직 변경하지 않은 협력사 목록을 조회합니다")
-        @PreAuthorize("hasRole('HEADQUARTERS') and @securityUtil.getCurrentHeadquartersId() == #headquartersId")
+        @PreAuthorize("hasRole('HEADQUARTERS')")
         @SecurityRequirement(name = "JWT")
-        public ResponseEntity<AuthDto.ApiResponse<List<PartnerResponse>>> getUnchangedPasswordPartners(
-                        @PathVariable Long headquartersId) {
-
-                log.info("비밀번호 미변경 협력사 목록 조회 요청: 본사 ID {}", headquartersId);
+        public ResponseEntity<AuthDto.ApiResponse<List<PartnerResponse>>> getUnchangedPasswordPartners() {
 
                 try {
+                        // JWT에서 안전하게 본사 ID 추출
+                        Long headquartersId = securityUtil.getCurrentHeadquartersId();
+
+                        log.info("비밀번호 미변경 협력사 목록 조회 요청: 본사 ID {}", headquartersId);
+
                         List<Partner> partners = partnerService.findUnchangedPasswordPartners(headquartersId);
                         List<PartnerResponse> response = partners.stream()
                                         .map(PartnerResponse::from)
