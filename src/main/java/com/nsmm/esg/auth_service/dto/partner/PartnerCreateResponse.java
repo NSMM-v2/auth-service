@@ -25,10 +25,10 @@ public class PartnerCreateResponse {
   @Schema(description = "본사 계정번호", example = "2412161700")
   private String hqAccountNumber;
 
-  @Schema(description = "계층적 아이디", example = "p1-kcs01")
+  @Schema(description = "계층적 아이디", example = "L1-001")
   private String hierarchicalId;
 
-  @Schema(description = "전체 계정번호", example = "2412161700-p1-kcs01")
+  @Schema(description = "전체 계정번호", example = "2412161700-L1-001")
   private String fullAccountNumber;
 
   @Schema(description = "회사명", example = "케이씨에스정보통신")
@@ -37,13 +37,13 @@ public class PartnerCreateResponse {
   @Schema(description = "담당자명", example = "김협력")
   private String contactPerson;
 
-  @Schema(description = "초기 비밀번호 (계층적 아이디와 동일)", example = "p1-kcs01")
+  @Schema(description = "초기 비밀번호 (계층적 아이디와 동일)", example = "L1-001")
   private String initialPassword;
 
   @Schema(description = "협력사 레벨", example = "1")
   private Integer level;
 
-  @Schema(description = "트리 경로", example = "/1/")
+  @Schema(description = "트리 경로", example = "/1/L1-001/")
   private String treePath;
 
   @Schema(description = "생성 일시")

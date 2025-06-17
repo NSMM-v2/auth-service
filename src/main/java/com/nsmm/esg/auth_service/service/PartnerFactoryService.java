@@ -11,10 +11,10 @@ import org.springframework.stereotype.Service;
 /**
  * 협력사 생성 전문 서비스
  * 
- * 역할:
- * - 1차 협력사 생성 (본사 직속)
- * - 하위 협력사 생성 (상위 협력사의 하위)
- * - 계층적 ID 및 트리 경로 생성
+ * 새로운 방식:
+ * - 계층적 ID: L{레벨}-{순번} (L1-001, L2-001...)
+ * - 트리 경로: /{본사ID}/L{레벨}-{순번}/ (/{본사ID}/L1-001/L2-001/...)
+ * - 초기 비밀번호: 계층적 ID와 동일
  */
 @Service
 @RequiredArgsConstructor
@@ -32,15 +32,15 @@ public class PartnerFactoryService {
   public Partner createFirstLevelPartner(Headquarters headquarters, PartnerCreateRequest request) {
     log.info("1차 협력사 생성: 본사ID={}, 회사명={}", headquarters.getId(), request.getCompanyName());
 
-    // 계층적 ID 생성
-    String hierarchicalId = partnerAccountService.generateFirstLevelId(request.getContactPerson());
+    // 계층적 ID 생성 (L1-001, L1-002...)
+    String hierarchicalId = partnerAccountService.generateFirstLevelId();
 
     // 초기 비밀번호는 계층적 ID와 동일
     String initialPassword = hierarchicalId;
     String encodedPassword = passwordUtil.encodePassword(initialPassword);
 
-    // 1차 협력사 트리 경로 (본사 직속이므로 루트 레벨)
-    String treePath = partnerTreeService.generateFirstLevelTreePath(headquarters.getId());
+    // 1차 협력사 트리 경로 생성 (/{본사ID}/L1-001/)
+    String treePath = partnerTreeService.generateFirstLevelTreePath(headquarters.getId(), hierarchicalId);
 
     // 1차 협력사 엔티티 생성
     return Partner.builder()
@@ -71,16 +71,15 @@ public class PartnerFactoryService {
     // 하위 레벨 계산
     int childLevel = partnerTreeService.calculateLevel(parentPartner);
 
-    // 계층적 ID 생성
-    String hierarchicalId = partnerAccountService.generateSubLevelId(
-        request.getContactPerson(), childLevel, parentPartner.getId());
+    // 계층적 ID 생성 (L2-001, L3-001...)
+    String hierarchicalId = partnerAccountService.generateSubLevelId(childLevel, parentPartner.getId());
 
     // 초기 비밀번호는 계층적 ID와 동일
     String initialPassword = hierarchicalId;
     String encodedPassword = passwordUtil.encodePassword(initialPassword);
 
-    // 하위 협력사 트리 경로 생성
-    String treePath = partnerTreeService.generateSubLevelTreePath(parentPartner);
+    // 하위 협력사 트리 경로 생성 (/{본사ID}/L1-001/L2-001/)
+    String treePath = partnerTreeService.generateSubLevelTreePath(parentPartner, hierarchicalId);
 
     // 하위 협력사 엔티티 생성
     return Partner.builder()

@@ -13,6 +13,11 @@ import java.util.List;
 /**
  * 협력사 엔티티 (계층형 구조)
  * 
+ * 새로운 계층적 구조:
+ * - 계층적 ID: L{레벨}-{순번} (L1-001, L2-001, L3-001...)
+ * - 트리 경로: /{본사ID}/L{레벨}-{순번}/ (/{본사ID}/L1-001/L2-001/...)
+ * - 초기 비밀번호: 계층적 ID와 동일
+ * 
  * 비즈니스 로직은 전용 서비스 클래스로 분리:
  * - PartnerAccountService: 계층적 아이디 생성
  * - PartnerTreeService: 트리 구조 관리
@@ -53,7 +58,7 @@ public class Partner {
     private String hqAccountNumber; // 본사 계정 번호 (2412161700)
 
     @Column(name = "hierarchical_id", nullable = false, length = 20)
-    private String hierarchicalId; // 계층적 아이디 (p1-kcs01, p2-lyh01)
+    private String hierarchicalId; // 계층적 아이디 (L1-001, L2-001, L3-001...)
 
     @Column(name = "company_name", nullable = false)
     private String companyName; // 협력사명
@@ -77,7 +82,7 @@ public class Partner {
     private Integer level; // 협력사 계층 레벨 (1차=1, 2차=2, ...)
 
     @Column(name = "tree_path", nullable = false, length = 500)
-    private String treePath; // 트리 경로 (/parent_id/current_id/)
+    private String treePath; // 트리 경로 (/{본사ID}/L1-001/L2-001/...)
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
@@ -105,6 +110,7 @@ public class Partner {
 
     /**
      * 전체 계정 번호 반환 (본사계정번호-계층적아이디)
+     * 예: 2412161700-L1-001, 2412161700-L2-001
      */
     public String getFullAccountNumber() {
         return this.hqAccountNumber + "-" + this.hierarchicalId;

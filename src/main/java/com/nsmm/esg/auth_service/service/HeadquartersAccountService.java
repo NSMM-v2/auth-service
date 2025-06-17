@@ -1,6 +1,5 @@
 package com.nsmm.esg.auth_service.service;
 
-import com.nsmm.esg.auth_service.dto.headquarters.DailyAccountStatsDto;
 import com.nsmm.esg.auth_service.repository.HeadquartersRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -113,18 +112,6 @@ public class HeadquartersAccountService {
   }
 
   /**
-   * 계정번호에서 생성 날짜 추출
-   */
-  public String extractCreationDate(String accountNumber) {
-    if (!isValidAccountNumber(accountNumber)) {
-      throw new IllegalArgumentException("잘못된 본사 계정번호 형식: " + accountNumber);
-    }
-
-    // 2412161700 → 241216
-    return accountNumber.substring(0, DATE_PART_LENGTH);
-  }
-
-  /**
    * 계정번호에서 순번 추출
    */
   public int extractSequence(String accountNumber) {
@@ -160,25 +147,6 @@ public class HeadquartersAccountService {
     String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
     long todayCount = getTodayHeadquartersCount(today);
     return (int) Math.max(0, DAILY_CAPACITY - todayCount);
-  }
-
-  /**
-   * 오늘 날짜 기준 통계 정보
-   */
-  public DailyAccountStatsDto getTodayAccountStats() {
-    String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
-    long todayCount = getTodayHeadquartersCount(today);
-    int remaining = getTodayRemainingCount();
-    String nextNumber = getNextAvailableAccountNumber();
-
-    return DailyAccountStatsDto.builder()
-        .date(today)
-        .totalGenerated((int) todayCount)
-        .maxDailyCapacity(DAILY_CAPACITY)
-        .remaining(remaining)
-        .nextAccountNumber(nextNumber)
-        .sequenceRange(String.format("%d-%d", MIN_SEQUENCE, MAX_SEQUENCE))
-        .build();
   }
 
 }

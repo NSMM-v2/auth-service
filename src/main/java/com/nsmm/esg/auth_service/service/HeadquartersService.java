@@ -12,7 +12,6 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -109,27 +108,6 @@ public class HeadquartersService {
     }
 
     /**
-     * 본사 정보 조회 (이메일)
-     */
-    public Optional<Headquarters> findByEmail(String email) {
-        return headquartersRepository.findByEmail(email);
-    }
-
-    /**
-     * 본사 정보 조회 (계정번호) - JWT 검증용
-     */
-    public Optional<Headquarters> findByHqAccountNumber(String hqAccountNumber) {
-        return headquartersRepository.findByHqAccountNumber(hqAccountNumber);
-    }
-
-    /**
-     * 활성 본사 목록 조회
-     */
-    public List<Headquarters> findAllActive() {
-        return headquartersRepository.findAllActive();
-    }
-
-    /**
      * 본사 정보 수정
      */
     @Transactional
@@ -173,23 +151,6 @@ public class HeadquartersService {
         headquartersRepository.save(updatedHeadquarters);
 
         log.info("본사 비밀번호 변경 완료: ID={}", id);
-    }
-
-    /**
-     * 본사 상태 변경
-     */
-    @Transactional
-    public void changeStatus(Long id, Headquarters.CompanyStatus newStatus) {
-        log.info("본사 상태 변경 요청: ID={}, 새상태={}", id, newStatus);
-
-        Headquarters headquarters = headquartersRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 본사입니다: " + id));
-
-        // 상태 변경 (불변성 보장)
-        Headquarters updatedHeadquarters = headquarters.changeStatus(newStatus);
-        headquartersRepository.save(updatedHeadquarters);
-
-        log.info("본사 상태 변경 완료: ID={}, 상태={}", id, newStatus);
     }
 
     /**

@@ -8,10 +8,10 @@ import org.springframework.stereotype.Service;
 /**
  * 협력사 트리 구조 관리 전문 서비스
  * 
- * 책임:
- * - 트리 경로 생성 및 관리
- * - 계층 관계 검증
- * - 상하위 관계 조회
+ * 새로운 트리 경로 방식: /{본사ID}/L{레벨}-{순번}/
+ * - 1차 협력사: /1/L1-001/, /1/L1-002/...
+ * - 2차 협력사: /1/L1-001/L2-001/, /1/L1-001/L2-002/...
+ * - 3차 협력사: /1/L1-001/L2-001/L3-001/...
  */
 @Slf4j
 @Service
@@ -20,40 +20,26 @@ public class PartnerTreeService {
 
   /**
    * 1차 협력사 트리 경로 생성
-   * 본사 직속 협력사의 트리 경로 생성 (ID가 아직 없는 상태)
+   * 형식: /{본사ID}/L{레벨}-{순번}/
    * 
    * @param headquartersId 본사 ID
+   * @param hierarchicalId 계층적 아이디 (L1-001, L1-002...)
    * @return 1차 협력사용 트리 경로
    */
-  public String generateFirstLevelTreePath(Long headquartersId) {
-    return String.format("/hq%d/", headquartersId);
+  public String generateFirstLevelTreePath(Long headquartersId, String hierarchicalId) {
+    return String.format("/%d/%s/", headquartersId, hierarchicalId);
   }
 
   /**
    * 하위 협력사 트리 경로 생성
-   * 상위 협력사 기반으로 하위 트리 경로 생성
+   * 상위 경로에 현재 계층적 아이디 추가
    * 
-   * @param parentPartner 상위 협력사
+   * @param parentPartner  상위 협력사
+   * @param hierarchicalId 현재 협력사의 계층적 아이디
    * @return 하위 협력사용 트리 경로
    */
-  public String generateSubLevelTreePath(Partner parentPartner) {
-    return parentPartner.getTreePath() + "sub/";
-  }
-
-  /**
-   * 트리 경로 생성 (저장 후 실제 ID로 업데이트)
-   * 
-   * @param partner 협력사 엔티티
-   * @return 생성된 트리 경로
-   */
-  public String generateTreePath(Partner partner) {
-    if (partner.getParent() == null) {
-      // 1차 협력사: /hq{본사ID}/p{협력사ID}/
-      return String.format("/hq%d/p%d/", partner.getHeadquarters().getId(), partner.getId());
-    } else {
-      // 하위 협력사: 상위 경로 + p{협력사ID}/
-      return partner.getParent().getTreePath() + String.format("p%d/", partner.getId());
-    }
+  public String generateSubLevelTreePath(Partner parentPartner, String hierarchicalId) {
+    return parentPartner.getTreePath() + hierarchicalId + "/";
   }
 
   /**
@@ -85,5 +71,36 @@ public class PartnerTreeService {
    */
   public int calculateLevel(Partner parent) {
     return (parent == null) ? 1 : parent.getLevel() + 1;
+  }
+
+  /**
+   * 트리 경로에서 본사 ID 추출
+   * /1/L1-001/ → 1
+   */
+  public Long extractHeadquartersIdFromTreePath(String treePath) {
+    if (treePath == null || !treePath.startsWith("/")) {
+      throw new IllegalArgumentException("잘못된 트리 경로 형식: " + treePath);
+    }
+
+    int firstSlash = treePath.indexOf('/', 1);
+    if (firstSlash == -1) {
+      throw new IllegalArgumentException("잘못된 트리 경로 형식: " + treePath);
+    }
+
+    String hqIdStr = treePath.substring(1, firstSlash);
+    return Long.parseLong(hqIdStr);
+  }
+
+  /**
+   * 트리 경로 유효성 검증
+   * 형식: /{본사ID}/L{레벨}-{순번}/.../
+   */
+  public boolean isValidTreePath(String treePath) {
+    if (treePath == null || treePath.trim().isEmpty()) {
+      return false;
+    }
+
+    // 기본 형식 검증: /숫자/L숫자-숫자/.../
+    return treePath.matches("^/\\d+(/L\\d+-\\d{3})+/$");
   }
 }

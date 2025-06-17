@@ -22,7 +22,7 @@ public class PartnerLoginRequest {
   private String hqAccountNumber;
 
   @NotBlank(message = "협력사 아이디는 필수입니다")
-  @Schema(description = "계층적 아이디", example = "p1-kcs01")
+  @Schema(description = "계층적 아이디", example = "L1-001")
   private String hierarchicalId;
 
   @NotBlank(message = "비밀번호는 필수입니다")

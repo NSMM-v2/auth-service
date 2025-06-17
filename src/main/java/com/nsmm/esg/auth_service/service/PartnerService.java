@@ -37,7 +37,6 @@ public class PartnerService {
 
         // 전문 서비스들
         private final PartnerFactoryService partnerFactoryService;
-        private final PartnerTreeService partnerTreeService;
 
         /**
          * 협력사 로그인 (본사계정번호 + 계층적아이디 + 비밀번호)
@@ -77,46 +76,21 @@ public class PartnerService {
          */
         @Transactional
         public Partner createFirstLevelPartner(Headquarters headquarters, PartnerCreateRequest request) {
-                log.info("1차 협력사 생성 요청: 본사ID={}, 회사명={}", headquarters.getId(), request.getCompanyName());
+                log.info("1차 협력사 생성 시작: 본사ID={}, 회사명={}", headquarters.getId(), request.getCompanyName());
 
-                // 이메일 중복 검사
-                if (partnerRepository.existsByEmail(request.getEmail())) {
-                        throw new IllegalArgumentException("이미 등록된 이메일입니다: " + request.getEmail());
+                // 이메일 중복 확인
+                if (partnerRepository.findByEmail(request.getEmail()).isPresent()) {
+                        throw new IllegalArgumentException("이미 사용중인 이메일입니다: " + request.getEmail());
                 }
 
-                // 협력사 생성 및 저장
+                // 1차 협력사 생성
                 Partner partner = partnerFactoryService.createFirstLevelPartner(headquarters, request);
                 Partner savedPartner = partnerRepository.save(partner);
 
-                // 저장 후 실제 ID로 트리 경로 업데이트
-                String finalTreePath = partnerTreeService.generateTreePath(savedPartner);
-                Partner updatedPartner = Partner.builder()
-                                .id(savedPartner.getId())
-                                .headquarters(savedPartner.getHeadquarters())
-                                .parent(savedPartner.getParent())
-                                .children(savedPartner.getChildren())
-                                .hqAccountNumber(savedPartner.getHqAccountNumber())
-                                .hierarchicalId(savedPartner.getHierarchicalId())
-                                .companyName(savedPartner.getCompanyName())
-                                .email(savedPartner.getEmail())
-                                .password(savedPartner.getPassword())
-                                .contactPerson(savedPartner.getContactPerson())
-                                .phone(savedPartner.getPhone())
-                                .address(savedPartner.getAddress())
-                                .level(savedPartner.getLevel())
-                                .treePath(finalTreePath)
-                                .status(savedPartner.getStatus())
-                                .passwordChanged(savedPartner.getPasswordChanged())
-                                .createdAt(savedPartner.getCreatedAt())
-                                .updatedAt(savedPartner.getUpdatedAt())
-                                .build();
-
-                Partner finalPartner = partnerRepository.save(updatedPartner);
-
                 log.info("1차 협력사 생성 완료: ID={}, 계층적아이디={}",
-                                finalPartner.getId(), finalPartner.getHierarchicalId());
+                                savedPartner.getId(), savedPartner.getHierarchicalId());
 
-                return finalPartner;
+                return savedPartner;
         }
 
         /**
@@ -125,46 +99,21 @@ public class PartnerService {
          */
         @Transactional
         public Partner createSubPartner(Partner parentPartner, PartnerCreateRequest request) {
-                log.info("하위 협력사 생성 요청: 상위ID={}, 회사명={}", parentPartner.getId(), request.getCompanyName());
+                log.info("하위 협력사 생성 시작: 상위ID={}, 회사명={}", parentPartner.getId(), request.getCompanyName());
 
-                // 이메일 중복 검사
-                if (partnerRepository.existsByEmail(request.getEmail())) {
-                        throw new IllegalArgumentException("이미 등록된 이메일입니다: " + request.getEmail());
+                // 이메일 중복 확인
+                if (partnerRepository.findByEmail(request.getEmail()).isPresent()) {
+                        throw new IllegalArgumentException("이미 사용중인 이메일입니다: " + request.getEmail());
                 }
 
-                // 하위 협력사 생성 및 저장
+                // 하위 협력사 생성
                 Partner partner = partnerFactoryService.createSubPartner(parentPartner, request);
                 Partner savedPartner = partnerRepository.save(partner);
 
-                // 저장 후 실제 ID로 트리 경로 업데이트
-                String finalTreePath = partnerTreeService.generateTreePath(savedPartner);
-                Partner updatedPartner = Partner.builder()
-                                .id(savedPartner.getId())
-                                .headquarters(savedPartner.getHeadquarters())
-                                .parent(savedPartner.getParent())
-                                .children(savedPartner.getChildren())
-                                .hqAccountNumber(savedPartner.getHqAccountNumber())
-                                .hierarchicalId(savedPartner.getHierarchicalId())
-                                .companyName(savedPartner.getCompanyName())
-                                .email(savedPartner.getEmail())
-                                .password(savedPartner.getPassword())
-                                .contactPerson(savedPartner.getContactPerson())
-                                .phone(savedPartner.getPhone())
-                                .address(savedPartner.getAddress())
-                                .level(savedPartner.getLevel())
-                                .treePath(finalTreePath)
-                                .status(savedPartner.getStatus())
-                                .passwordChanged(savedPartner.getPasswordChanged())
-                                .createdAt(savedPartner.getCreatedAt())
-                                .updatedAt(savedPartner.getUpdatedAt())
-                                .build();
-
-                Partner finalPartner = partnerRepository.save(updatedPartner);
-
                 log.info("하위 협력사 생성 완료: ID={}, 계층적아이디={}",
-                                finalPartner.getId(), finalPartner.getHierarchicalId());
+                                savedPartner.getId(), savedPartner.getHierarchicalId());
 
-                return finalPartner;
+                return savedPartner;
         }
 
         /**
