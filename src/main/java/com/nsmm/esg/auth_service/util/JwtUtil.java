@@ -23,12 +23,13 @@ public class JwtUtil {
     private final long accessTokenExpiration;
     private final long refreshTokenExpiration;
 
-    public JwtUtil(@Value("${jwt.secret}") String secret,
-                   @Value("${jwt.expiration}") long accessTokenExpiration,
-                   @Value("${jwt.refresh-expiration}") long refreshTokenExpiration) {
+    public JwtUtil(
+            @Value("${jwt.secret:mySecretKeyForJWTTokenGenerationAndValidationPurposeOnly123456789}") String secret,
+            @Value("${jwt.expiration:900000}") long accessTokenExpiration,
+            @Value("${jwt.refresh-expiration:604800000}") long refreshTokenExpiration) { // n 하나 제거
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes());
         this.accessTokenExpiration = accessTokenExpiration;
-        this.refreshTokenExpiration = refreshTokenExpiration;
+        this.refreshTokenExpiration = refreshTokenExpiration; // 이제 매치됨
     }
 
     /**
@@ -36,7 +37,7 @@ public class JwtUtil {
      */
     public String generateAccessToken(AuthDto.JwtClaims claims) {
         Map<String, Object> claimsMap = createClaimsMap(claims);
-        
+
         return Jwts.builder()
                 .setClaims(claimsMap)
                 .setSubject(claims.getAccountNumber())
@@ -150,7 +151,7 @@ public class JwtUtil {
      */
     public AuthDto.JwtClaims getAllClaimsFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
-        
+
         return AuthDto.JwtClaims.builder()
                 .accountNumber(claims.getSubject())
                 .companyName(claims.get("companyName", String.class))
@@ -182,13 +183,13 @@ public class JwtUtil {
         claimsMap.put("userType", claims.getUserType());
         claimsMap.put("headquartersId", claims.getHeadquartersId());
         claimsMap.put("userId", claims.getUserId());
-        
+
         // 협력사인 경우에만 추가
         if ("PARTNER".equals(claims.getUserType())) {
             claimsMap.put("level", claims.getLevel());
             claimsMap.put("treePath", claims.getTreePath());
         }
-        
+
         return claimsMap;
     }
 
@@ -206,4 +207,4 @@ public class JwtUtil {
         return refreshTokenExpiration;
     }
 
-} 
+}

@@ -1,642 +1,468 @@
-# ESG Auth Service API 문서
+# 🔐 ESG Auth Service - 인증/권한 관리 시스템
 
-ESG 프로젝트의 인증 서비스입니다. 본사와 협력사 간의 계층적 권한 관리를 지원하는 마이크로서비스입니다.
+> **Spring Boot 3.5 기반 마이크로서비스 아키텍처**  
+> 계층적 조직 구조를 지원하는 JWT 인증 시스템
 
-## 🆕 새로운 계층적 ID 시스템 (2024년 업데이트)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.0-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Spring Security](https://img.shields.io/badge/Spring%20Security-6.x-blue.svg)](https://spring.io/projects/spring-security)
+[![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.java.net/projects/jdk/17/)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0-blue.svg)](https://www.mysql.com/)
+[![JWT](https://img.shields.io/badge/JWT-JJWT%200.11.5-purple.svg)](https://github.com/jwtk/jjwt)
 
-### 계층적 ID 체계
+## 📋 프로젝트 개요
 
-- **1차 협력사**: `L1-001`, `L1-002`, `L1-003`...
-- **2차 협력사**: `L2-001`, `L2-002`, `L2-003`...
-- **3차 협력사**: `L3-001`, `L3-002`, `L3-003`...
+ESG Auth Service는 **대기업과 다단계 협력사 간의 복잡한 권한 관리**를 해결하기 위해 설계된 엔터프라이즈급 인증 시스템입니다.
 
-### 트리 경로 체계
+### 🎯 핵심 해결 과제
 
-- **1차 협력사**: `/{본사ID}/L1-001/`
-- **2차 협력사**: `/{본사ID}/L1-001/L2-001/`
-- **3차 협력사**: `/{본사ID}/L1-001/L2-001/L3-001/`
+- **계층적 조직 구조**: 본사 → 1차 협력사 → 2차 협력사 → N차 협력사
+- **세분화된 권한 제어**: 상위 조직은 하위 조직 데이터 접근 가능, 역방향 차단
+- **확장 가능한 아키텍처**: 수천 개의 협력사가 추가되어도 성능 저하 없음
+- **보안 강화**: JWT 쿠키 기반 인증으로 XSS/CSRF 공격 방어
 
-### 초기 비밀번호
+### 🏗️ 시스템 아키텍처
 
-- **규칙**: 계층적 ID와 동일 (예: `L1-001`, `L2-001`)
-- **첫 로그인 후**: 반드시 복잡한 비밀번호로 변경 필요
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        WEB[웹 브라우저]
+        MOBILE[모바일 앱]
+        API_CLIENT[API 클라이언트]
+    end
 
-## 📋 목차
+    subgraph "Gateway Layer"
+        GATEWAY[API Gateway<br/>포트: 8080]
+    end
 
-- [🖥️ 서버 정보](#️-서버-정보)
-- [🔐 인증 방식](#-인증-방식)
-- [📡 본사 API](#-본사-api)
-- [🏢 협력사 API](#-협력사-api)
-- [❌ 에러 코드](#-에러-코드)
-- [🧪 테스트 시나리오](#-테스트-시나리오)
-- [📝 참고사항](#-참고사항)
+    subgraph "Service Discovery"
+        EUREKA[Eureka Server<br/>포트: 8761]
+    end
 
-## 🖥️ 서버 정보
+    subgraph "Microservices"
+        AUTH[Auth Service<br/>포트: 8081<br/>인증/권한 관리]
+        CSDDD[CSDDD Service<br/>포트: 8083<br/>ESG 데이터 관리]
+        CONFIG[Config Service<br/>포트: 8888<br/>중앙 설정 관리]
+    end
 
-- **개발 서버**: `http://localhost:8081`
-- **Swagger UI**: `http://localhost:8081/swagger-ui.html`
-- **API Docs**: `http://localhost:8081/api-docs`
+    subgraph "Database Layer"
+        MYSQL[(MySQL Database<br/>esg_auth)]
+    end
 
-## 🔐 인증 방식
+    subgraph "External Systems"
+        CARBON_API[탄소 배출<br/>계수 API]
+        GOV_API[정부 공시<br/>시스템]
+    end
 
-### JWT 토큰 기반 인증
+    WEB --> GATEWAY
+    MOBILE --> GATEWAY
+    API_CLIENT --> GATEWAY
 
-- **Access Token**: 15분 유효 (900초)
-- **Refresh Token**: 7일 유효
-- **전송 방식**:
-  1. **쿠키**: `jwt` (HttpOnly, Secure, SameSite=Strict) - 권장
-  2. **헤더**: `Authorization: Bearer {token}`
+    GATEWAY --> AUTH
+    GATEWAY --> CSDDD
 
-### 권한 체계
+    AUTH --> EUREKA
+    CSDDD --> EUREKA
+    GATEWAY --> EUREKA
 
-- **본사 (HEADQUARTERS)**: 모든 협력사 데이터 접근 가능
-- **협력사 (PARTNER)**: 자신과 하위 협력사만 접근 가능
+    AUTH --> CONFIG
+    CSDDD --> CONFIG
+    GATEWAY --> CONFIG
 
-## 📡 본사 API
+    AUTH --> MYSQL
+    CSDDD --> MYSQL
 
-### 1. 본사 회원가입
+    CSDDD --> CARBON_API
+    CSDDD --> GOV_API
 
-새로운 본사 계정을 생성합니다. 계정 번호는 YYMMDD17XX 형식으로 자동 생성됩니다.
+    classDef client fill:#e1f5fe
+    classDef gateway fill:#f3e5f5
+    classDef service fill:#e8f5e8
+    classDef database fill:#fff3e0
+    classDef external fill:#fce4ec
 
-**엔드포인트**
+    class WEB,MOBILE,API_CLIENT client
+    class GATEWAY gateway
+    class AUTH,CSDDD,CONFIG,EUREKA service
+    class MYSQL database
+    class CARBON_API,GOV_API external
+```
+
+## 🔄 인증 플로우
+
+```mermaid
+sequenceDiagram
+    participant C as 클라이언트
+    participant G as API Gateway
+    participant A as Auth Service
+    participant D as Database
+    participant E as Eureka
+
+    Note over C,E: 1. 본사/협력사 로그인 플로우
+
+    C->>G: POST /api/v1/headquarters/login<br/>{email, password}
+    G->>A: 요청 전달
+
+    A->>D: 사용자 조회 (이메일)
+    D-->>A: 사용자 정보 반환
+
+    alt 인증 성공
+        A->>A: 비밀번호 검증 (BCrypt)
+        A->>A: JWT 토큰 생성<br/>(Access + Refresh)
+        A->>A: 계층적 권한 정보 포함<br/>(treePath, level, accountNumber)
+        A-->>G: 토큰 + 사용자 정보
+        G-->>C: Set-Cookie: jwt=token<br/>+ 사용자 정보 응답
+    else 인증 실패
+        A-->>G: 401 Unauthorized
+        G-->>C: 로그인 실패 응답
+    end
+
+    Note over C,E: 2. 보호된 리소스 접근
+
+    C->>G: GET /api/v1/partners/list<br/>Cookie: jwt=token
+    G->>G: JWT 토큰 검증
+    G->>G: 권한 헤더 추가<br/>(X-User-Id, X-Tree-Path)
+    G->>A: 요청 전달 + 권한 헤더
+
+    A->>A: 계층적 권한 검증<br/>@PreAuthorize
+    A->>D: 권한 범위 내 데이터 조회
+    D-->>A: 결과 반환
+    A-->>G: 응답 데이터
+    G-->>C: 최종 응답
+
+    Note over C,E: 3. 토큰 갱신
+
+    C->>G: POST /api/v1/auth/refresh<br/>Cookie: jwt=refreshToken
+    G->>A: 요청 전달
+    A->>A: Refresh Token 검증
+    A->>A: 새로운 Access Token 생성
+    A-->>G: 새 토큰
+    G-->>C: Set-Cookie: jwt=newToken
+```
+
+## 🛠️ 기술 스택
+
+### Core Framework
+
+- **Spring Boot 3.5.0** - 최신 버전의 엔터프라이즈 프레임워크
+- **Spring Security 6.x** - 인증/인가 및 보안 관리
+- **Spring Data JPA** - 데이터 접근 계층 추상화
+- **Spring Cloud 2025.0.0** - 마이크로서비스 인프라
+
+### Security & Authentication
+
+- **JWT (JJWT 0.11.5)** - 토큰 기반 stateless 인증
+- **BCrypt** - 비밀번호 해싱 알고리즘
+- **HttpOnly Cookie** - XSS 공격 방어
+
+### Database & ORM
+
+- **MySQL 8.0** - 메인 데이터베이스
+- **Hibernate** - JPA 구현체
+- **HikariCP** - 고성능 커넥션 풀
+
+### Microservice Infrastructure
+
+- **Netflix Eureka** - 서비스 디스커버리
+- **Spring Cloud Config** - 중앙집중식 설정 관리
+- **Spring Cloud Gateway** - API 게이트웨이
+
+### Development & Documentation
+
+- **OpenAPI 3 / Swagger** - API 문서 자동 생성
+- **Lombok** - 보일러플레이트 코드 제거
+- **Spring Boot Actuator** - 운영 모니터링
+
+## 🏢 계층적 조직 관리 시스템
+
+### 조직 구조 모델
 
 ```
-POST /api/v1/headquarters/register
+본사 (Headquarters)
+├── 1차 협력사 (Level 1 Partner)
+│   ├── 2차 협력사 (Level 2 Partner)
+│   │   └── 3차 협력사 (Level 3 Partner)
+│   └── 2차 협력사 (Level 2 Partner)
+└── 1차 협력사 (Level 1 Partner)
+    └── 2차 협력사 (Level 2 Partner)
 ```
 
-**요청 본문**
+### Tree Path 시스템
 
-```json
-{
-  "companyName": "테스트 본사",
-  "email": "test@company.com",
-  "password": "Test123!@#",
-  "name": "홍길동",
-  "department": "IT팀",
-  "position": "팀장",
-  "phone": "010-1234-5678",
-  "address": "서울시 강남구 테헤란로 123"
+AWS IAM과 유사한 계층적 경로 시스템을 구현했습니다:
+
+- **본사**: `/HQ001/`
+- **1차 협력사**: `/HQ001/L1-001/`
+- **2차 협력사**: `/HQ001/L1-001/L2-001/`
+- **3차 협력사**: `/HQ001/L1-001/L2-001/L3-001/`
+
+### 권한 제어 로직
+
+```java
+// 계층적 권한 검증 예시
+@PreAuthorize("@securityUtil.canAccessPartnerData(#partnerId)")
+public PartnerResponse getPartnerData(String partnerId) {
+    // 현재 사용자의 treePath가 대상 Partner의 treePath를 포함하는지 확인
+    // 예: 사용자 "/HQ001/L1-001/"가 "/HQ001/L1-001/L2-001/" 접근 시 허용
 }
 ```
 
-**성공 응답 (200 OK)**
+## 🔒 보안 설계
 
-```json
-{
-  "success": true,
-  "message": "본사 회원가입이 성공적으로 완료되었습니다.",
-  "data": {
-    "id": 1,
-    "hqAccountNumber": "2412161700",
-    "companyName": "테스트 본사",
-    "email": "test@company.com",
-    "name": "홍길동",
-    "department": "IT팀",
-    "position": "팀장",
-    "phone": "010-1234-5678",
-    "address": "서울시 강남구 테헤란로 123",
-    "status": "ACTIVE",
-    "createdAt": "2024-12-16T17:00:00"
-  },
-  "errorCode": null,
-  "timestamp": "2024-12-16T17:00:00"
-}
+### JWT 토큰 전략
+
+1. **Access Token (15분)**
+
+   - 실제 API 접근용
+   - 짧은 만료시간으로 보안 강화
+   - 사용자 권한 정보 포함
+
+2. **Refresh Token (7일)**
+   - Access Token 갱신용
+   - 긴 만료시간으로 사용자 편의성 제공
+   - HttpOnly 쿠키로 XSS 방어
+
+### 쿠키 보안 설정
+
+```java
+// JWT 쿠키 보안 설정
+Cookie jwtCookie = new Cookie("jwt", token);
+jwtCookie.setHttpOnly(true);      // XSS 방어
+jwtCookie.setSecure(true);        // HTTPS 전용 (운영환경)
+jwtCookie.setSameSite("Strict");  // CSRF 방어
+jwtCookie.setMaxAge(900);         // 15분
 ```
 
-**curl 테스트**
+### 비밀번호 정책
+
+- **최소 8자 이상**
+- **대문자, 소문자, 숫자, 특수문자 각 1개 이상**
+- **BCrypt 해싱** (salt rounds: 12)
+- **초기 비밀번호 강제 변경**
+
+## 📊 핵심 기능
+
+### 1. 본사 관리
+
+- ✅ 회원가입 및 로그인
+- ✅ 8자리 숫자 계정번호 자동 생성 (YYMMDD + 일련번호)
+- ✅ 모든 협력사 데이터 접근 권한
+- ✅ 협력사 계정 생성 및 관리
+
+### 2. 협력사 관리
+
+- ✅ 계층별 ID 자동 생성 (L1-001, L2-001, L3-001...)
+- ✅ 초기 비밀번호 자동 설정 및 강제 변경
+- ✅ 하위 협력사만 접근 가능한 권한 제어
+- ✅ 트리 구조 기반 데이터 접근
+
+### 3. 인증/인가
+
+- ✅ JWT 기반 stateless 인증
+- ✅ 다중 로그인 방식 지원 (이메일, 계정번호, 로그인ID)
+- ✅ 메서드 레벨 보안 (@PreAuthorize)
+- ✅ 자동 토큰 갱신
+
+## 🗄️ 데이터베이스 설계
+
+### Headquarters 테이블
+
+```sql
+CREATE TABLE headquarters (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    hq_account_number VARCHAR(10) UNIQUE NOT NULL,  -- 8자리 숫자
+    company_name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,                 -- BCrypt 해시
+    name VARCHAR(100) NOT NULL,
+    department VARCHAR(100),
+    position VARCHAR(50),
+    phone VARCHAR(20),
+    address TEXT,
+    status ENUM('ACTIVE', 'INACTIVE') DEFAULT 'ACTIVE',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
+### Partner 테이블
+
+```sql
+CREATE TABLE partner (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    headquarters_id BIGINT NOT NULL,
+    parent_partner_id BIGINT,                       -- 상위 협력사 ID
+    external_partner_id VARCHAR(20) UNIQUE NOT NULL, -- L1-001, L2-001 등
+    aws_account_number VARCHAR(10) UNIQUE NOT NULL,   -- 8자리 숫자
+    login_id VARCHAR(100) UNIQUE,                     -- 회사명 기반 로그인 ID
+    company_name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    tree_path TEXT NOT NULL,                          -- /HQ001/L1-001/L2-001/
+    level INT NOT NULL,                               -- 1, 2, 3...
+    status ENUM('ACTIVE', 'INACTIVE', 'PENDING') DEFAULT 'PENDING',
+    is_initial_password BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (headquarters_id) REFERENCES headquarters(id),
+    FOREIGN KEY (parent_partner_id) REFERENCES partner(id)
+);
+```
+
+## 🚀 성능 최적화
+
+### 1. 데이터베이스 최적화
+
+- **HikariCP 커넥션 풀**: 최대 20개 커넥션
+- **JPA 배치 처리**: batch_size=20으로 설정
+- **N+1 문제 해결**: @EntityGraph 및 JOIN FETCH 활용
+
+### 2. 보안 최적화
+
+- **JWT 서명 캐싱**: 동일 토큰에 대한 중복 검증 방지
+- **비밀번호 해싱**: BCrypt rounds=12 (보안과 성능 균형)
+
+### 3. 네트워크 최적화
+
+- **HTTP/2 지원**: Spring Boot 3.x 기본 설정
+- **압축 활성화**: Gzip 압축으로 응답 크기 최적화
+
+## 📈 확장성 고려사항
+
+### 1. 수평 확장 지원
+
+- **Stateless 설계**: JWT 토큰 기반으로 서버 간 세션 공유 불필요
+- **로드밸런싱 대응**: Eureka를 통한 자동 로드 분산
+
+### 2. 데이터베이스 확장
+
+- **읽기 전용 복제본**: 조회 쿼리 분산 처리 가능
+- **파티셔닝**: 본사별 데이터 분할 가능
+
+### 3. 캐싱 전략
+
+- **JWT 토큰 캐싱**: Redis 도입으로 토큰 검증 성능 향상 가능
+- **권한 정보 캐싱**: 자주 조회되는 권한 정보 메모리 캐싱
+
+## 🧪 API 사용 예시
+
+### 본사 회원가입
 
 ```bash
 curl -X POST http://localhost:8081/api/v1/headquarters/register \
   -H "Content-Type: application/json" \
   -d '{
-    "companyName": "테스트 본사",
-    "email": "test@company.com",
-    "password": "Test123!@#",
-    "name": "홍길동",
+    "companyName": "삼성전자",
+    "email": "admin@samsung.com",
+    "password": "Samsung123!@#",
+    "name": "김철수",
     "department": "IT팀",
-    "position": "팀장",
-    "phone": "010-1234-5678",
-    "address": "서울시 강남구 테헤란로 123"
+    "position": "부장"
   }'
 ```
 
-### 2. 본사 로그인
-
-**엔드포인트**
-
-```
-POST /api/v1/headquarters/login
-```
-
-**요청 본문**
-
-```json
-{
-  "email": "test@company.com",
-  "password": "Test123!@#"
-}
-```
-
-**성공 응답 (200 OK)**
-
-```json
-{
-  "success": true,
-  "message": "로그인이 성공적으로 완료되었습니다.",
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "tokenType": "Bearer",
-    "expiresIn": 900000,
-    "issuedAt": "2024-12-16T17:00:00",
-    "expiresAt": "2024-12-16T17:15:00",
-    "accountNumber": "2412161700",
-    "companyName": "테스트 본사",
-    "userType": "HEADQUARTERS",
-    "level": null
-  },
-  "errorCode": null,
-  "timestamp": "2024-12-16T17:00:00"
-}
-```
-
-### 3. 로그아웃
-
-**엔드포인트**
-
-```
-POST /api/v1/headquarters/logout
-```
-
-**요청 헤더**
-
-```
-Authorization: Bearer {accessToken}
-```
-
-### 4. 이메일 중복 확인
-
-**엔드포인트**
-
-```
-GET /api/v1/headquarters/check-email?email={email}
-```
-
-### 5. 다음 계정번호 미리 확인
-
-**엔드포인트**
-
-```
-GET /api/v1/headquarters/next-account-number
-```
-
-### 6. 계정번호 유효성 검증
-
-**엔드포인트**
-
-```
-GET /api/v1/headquarters/validate-account-number?accountNumber={accountNumber}
-```
-
-## 🏢 협력사 API
-
-### 1. 1차 협력사 생성 (본사에서)
-
-본사에서 1차 협력사를 생성합니다.
-
-**엔드포인트**
-
-```
-POST /api/v1/partners/first-level
-```
-
-**요청 헤더**
-
-```
-Authorization: Bearer {본사_토큰}
-Content-Type: application/json
-X-Headquarters-Id: 1
-```
-
-**요청 본문**
-
-```json
-{
-  "companyName": "삼성전자",
-  "email": "samsung@example.com",
-  "contactPerson": "김철수",
-  "phone": "02-9876-5432",
-  "address": "서울시 서초구"
-}
-```
-
-**성공 응답 (201 Created)**
-
-```json
-{
-  "success": true,
-  "message": "1차 협력사가 성공적으로 생성되었습니다.",
-  "data": {
-    "partnerId": 1,
-    "hqAccountNumber": "2412161700",
-    "hierarchicalId": "L1-001",
-    "fullAccountNumber": "2412161700-L1-001",
-    "companyName": "삼성전자",
-    "contactPerson": "김철수",
-    "initialPassword": "L1-001",
-    "level": 1,
-    "treePath": "/1/L1-001/",
-    "createdAt": "2024-12-16T17:30:00",
-    "message": "협력사가 성공적으로 생성되었습니다. 초기 비밀번호로 로그인 후 비밀번호를 변경해주세요."
-  },
-  "errorCode": null,
-  "timestamp": "2024-12-16T17:30:00"
-}
-```
-
-### 2. 하위 협력사 생성 (협력사에서)
-
-상위 협력사에서 하위 협력사를 생성합니다.
-
-**엔드포인트**
-
-```
-POST /api/v1/partners/{parentId}/sub-partners
-```
-
-**요청 헤더**
-
-```
-Authorization: Bearer {협력사_토큰}
-Content-Type: application/json
-```
-
-**요청 본문**
-
-```json
-{
-  "companyName": "LG화학",
-  "email": "lgchem@example.com",
-  "contactPerson": "이영희",
-  "phone": "02-1111-2222",
-  "address": "서울시 영등포구"
-}
-```
-
-**성공 응답 (201 Created)**
-
-```json
-{
-  "success": true,
-  "message": "하위 협력사가 성공적으로 생성되었습니다.",
-  "data": {
-    "partnerId": 2,
-    "hqAccountNumber": "2412161700",
-    "hierarchicalId": "L2-001",
-    "fullAccountNumber": "2412161700-L2-001",
-    "companyName": "LG화학",
-    "contactPerson": "이영희",
-    "initialPassword": "L2-001",
-    "level": 2,
-    "treePath": "/1/L1-001/L2-001/",
-    "createdAt": "2024-12-16T17:35:00"
-  },
-  "errorCode": null,
-  "timestamp": "2024-12-16T17:35:00"
-}
-```
-
-### 3. 협력사 로그인
-
-계층적 ID 기반 로그인입니다.
-
-**엔드포인트**
-
-```
-POST /api/v1/partners/login
-```
-
-**요청 본문**
-
-```json
-{
-  "hqAccountNumber": "2412161700",
-  "hierarchicalId": "L1-001",
-  "password": "L1-001"
-}
-```
-
-**성공 응답 (200 OK)**
-
-```json
-{
-  "success": true,
-  "message": "로그인이 성공적으로 완료되었습니다.",
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "tokenType": "Bearer",
-    "expiresIn": 900000,
-    "fullAccountNumber": "2412161700-L1-001",
-    "companyName": "삼성전자",
-    "userType": "PARTNER",
-    "level": 1
-  },
-  "errorCode": null,
-  "timestamp": "2024-12-16T17:40:00"
-}
-```
-
-### 4. 협력사 정보 조회
-
-**엔드포인트**
-
-```
-GET /api/v1/partners/{partnerId}
-```
-
-**요청 헤더**
-
-```
-Authorization: Bearer {토큰}
-```
-
-### 5. 1차 협력사 목록 조회
-
-**엔드포인트**
-
-```
-GET /api/v1/partners/headquarters/{headquartersId}/first-level
-```
-
-### 6. 직접 하위 협력사 목록 조회
-
-**엔드포인트**
-
-```
-GET /api/v1/partners/{parentId}/children
-```
-
-### 7. 초기 비밀번호 변경
-
-협력사 첫 로그인 후 초기 비밀번호를 변경합니다.
-
-**엔드포인트**
-
-```
-PATCH /api/v1/partners/{partnerId}/initial-password
-```
-
-**요청 헤더**
-
-```
-Authorization: Bearer {협력사_토큰}
-Content-Type: application/json
-```
-
-**요청 본문**
-
-```json
-{
-  "newPassword": "NewPassword123!@#",
-  "confirmPassword": "NewPassword123!@#"
-}
-```
-
-**성공 응답 (200 OK)**
-
-```json
-{
-  "success": true,
-  "message": "초기 비밀번호 변경이 완료되었습니다.",
-  "data": "비밀번호가 성공적으로 변경되었습니다.",
-  "errorCode": null,
-  "timestamp": "2024-12-16T18:00:00"
-}
-```
-
-### 8. 비밀번호 미변경 협력사 목록
-
-**엔드포인트**
-
-```
-GET /api/v1/partners/headquarters/{headquartersId}/unchanged-password
-```
-
-### 9. 협력사 로그아웃
-
-**엔드포인트**
-
-```
-POST /api/v1/partners/logout
-```
-
-### 10. 이메일 중복 확인
-
-**엔드포인트**
-
-```
-GET /api/v1/partners/check-email?email={email}
-```
-
-## ❌ 에러 코드
-
-| 에러 코드               | HTTP 상태 | 설명                         |
-| ----------------------- | --------- | ---------------------------- |
-| REGISTRATION_FAILED     | 400       | 본사 회원가입 실패           |
-| SYSTEM_LIMIT_EXCEEDED   | 400       | 일일 본사 생성 한도 초과     |
-| LOGIN_FAILED            | 400       | 로그인 실패 (인증 정보 오류) |
-| CREATE_FAILED           | 400       | 협력사 생성 실패             |
-| PASSWORD_MISMATCH       | 400       | 비밀번호 확인 불일치         |
-| PASSWORD_CHANGE_FAILED  | 400       | 비밀번호 변경 실패           |
-| NOT_FOUND               | 404       | 리소스를 찾을 수 없음        |
-| AUTHENTICATION_REQUIRED | 401       | 인증이 필요함                |
-| ACCESS_DENIED           | 403       | 접근 권한 없음               |
-| INTERNAL_ERROR          | 500       | 서버 내부 오류               |
-
-## 🧪 테스트 시나리오
-
-### 시나리오 1: 본사 가입 → 1차 협력사 생성
+### 로그인 (JWT 쿠키 자동 설정)
 
 ```bash
-# 1. 본사 회원가입
-curl -X POST http://localhost:8081/api/v1/headquarters/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "companyName": "테스트 본사",
-    "email": "test@company.com",
-    "password": "Test123!@#",
-    "name": "홍길동",
-    "department": "IT팀",
-    "position": "팀장",
-    "phone": "010-1234-5678",
-    "address": "서울시 강남구"
-  }'
-
-# 2. 본사 로그인
 curl -X POST http://localhost:8081/api/v1/headquarters/login \
   -H "Content-Type: application/json" \
+  -c cookies.txt \
   -d '{
-    "email": "test@company.com",
-    "password": "Test123!@#"
-  }'
-
-# 3. 토큰을 변수에 저장 (응답에서 accessToken 복사)
-TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-
-# 4. 1차 협력사 생성
-curl -X POST http://localhost:8081/api/v1/partners/first-level \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "X-Headquarters-Id: 1" \
-  -d '{
-    "companyName": "삼성전자",
-    "email": "samsung@example.com",
-    "contactPerson": "김철수",
-    "phone": "02-9876-5432",
-    "address": "서울시 서초구"
+    "email": "admin@samsung.com",
+    "password": "Samsung123!@#"
   }'
 ```
 
-### 시나리오 2: 협력사 로그인 → 비밀번호 변경
+### 협력사 생성
 
 ```bash
-# 1. 협력사 로그인 (초기 비밀번호)
-curl -X POST http://localhost:8081/api/v1/partners/login \
+curl -X POST http://localhost:8081/api/v1/partners \
   -H "Content-Type: application/json" \
+  -b cookies.txt \
   -d '{
-    "hqAccountNumber": "2412161700",
-    "hierarchicalId": "L1-001",
-    "password": "L1-001"
-  }'
-
-# 2. 협력사 토큰을 변수에 저장
-PARTNER_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-
-# 3. 초기 비밀번호 변경
-curl -X PATCH http://localhost:8081/api/v1/partners/1/initial-password \
-  -H "Authorization: Bearer $PARTNER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "newPassword": "NewPassword123!@#",
-    "confirmPassword": "NewPassword123!@#"
+    "companyName": "LG전자",
+    "email": "partner@lg.com",
+    "name": "박영희",
+    "level": 1
   }'
 ```
 
-### 시나리오 3: 다단계 협력사 생성
+## 🔍 모니터링 및 운영
+
+### Actuator Endpoints
+
+- `/actuator/health` - 서비스 상태 확인
+- `/actuator/metrics` - 성능 메트릭
+- `/actuator/env` - 환경 설정 확인
+- `/actuator/info` - 애플리케이션 정보
+
+### 로깅 전략
+
+```yaml
+logging:
+  level:
+    com.nsmm.esg.auth_service: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+```
+
+## 🛠️ 개발 환경 설정
+
+### 필수 환경변수
 
 ```bash
-# 1. 1차 협력사에서 2차 협력사 생성
-curl -X POST http://localhost:8081/api/v1/partners/1/sub-partners \
-  -H "Authorization: Bearer $PARTNER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "companyName": "LG화학",
-    "email": "lgchem@example.com",
-    "contactPerson": "이영희",
-    "phone": "02-1111-2222",
-    "address": "서울시 영등포구"
-  }'
-
-# 2. 2차 협력사 로그인
-curl -X POST http://localhost:8081/api/v1/partners/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "hqAccountNumber": "2412161700",
-    "hierarchicalId": "L2-001",
-    "password": "L2-001"
-  }'
+export DB_URL=jdbc:mysql://localhost:3306/esg_auth
+export DB_USERNAME=esg_user
+export DB_PASSWORD=esg_password
+export JWT_SECRET=dev-secret-key-for-jwt-auth-service
 ```
 
-## 📝 참고사항
+### 실행 방법
 
-### 계정 번호 체계
+```bash
+# 1. MySQL 데이터베이스 생성
+mysql -u root -p -e "CREATE DATABASE esg_auth;"
 
-#### 본사 계정 번호
+# 2. 애플리케이션 실행
+./gradlew bootRun
 
-- **형식**: `YYMMDD17XX` (10자리)
-- **예시**: `2412161700`, `2412161701`
-- **규칙**: 날짜(6자리) + 17로 시작하는 순번(4자리)
-- **일일 한도**: 100개 (1700~1799)
+# 3. Swagger UI 접속
+open http://localhost:8081/swagger-ui.html
+```
 
-#### 협력사 계층적 ID
+## 🚀 향후 확장 계획
 
-- **형식**: `L{레벨}-{순번}` (3자리 순번)
-- **예시**: `L1-001`, `L2-001`, `L3-001`
-- **트리 경로**: `/{본사ID}/L{레벨}-{순번}/`
+### Phase 1 - 현재 구현 완료 ✅
 
-### 권한 관리
+- [x] 계층적 조직 관리
+- [x] JWT 인증/인가
+- [x] 다중 로그인 방식
+- [x] API Gateway 연동
 
-#### 본사 권한
+### Phase 2 - 진행 중 🔄
 
-- 모든 협력사 생성, 조회, 관리
-- 비밀번호 미변경 협력사 모니터링
-- 계층별 협력사 통계 조회
+- [ ] Redis 캐싱 도입
+- [ ] 실시간 알림 시스템
+- [ ] OAuth2 소셜 로그인
 
-#### 협력사 권한
+### Phase 3 - 계획 중 📋
 
-- 자신의 정보 조회/수정
-- 직접 하위 협력사 생성
-- 하위 협력사 목록 조회
+- [ ] RBAC (Role-Based Access Control)
+- [ ] 감사 로그 시스템
+- [ ] 다중 테넌트 지원
+- [ ] GraphQL API 지원
 
-### 보안 특징
+## 📞 기술 문의
 
-#### JWT 토큰
+이 프로젝트는 **엔터프라이즈급 인증 시스템**의 복잡한 요구사항을 해결하기 위해 최신 Spring 생태계와 마이크로서비스 아키텍처를 활용했습니다.
 
-- **쿠키 기반**: HttpOnly, Secure, SameSite=Strict
-- **클레임 정보**: 계정번호, 회사명, 권한, 계층 정보
-- **자동 갱신**: Refresh Token 활용
+**핵심 기술적 성과:**
 
-#### 비밀번호 정책
+- 🔒 **보안**: JWT + HttpOnly Cookie로 XSS/CSRF 방어
+- 📊 **확장성**: 수천 개 협력사 지원 가능한 계층 구조
+- ⚡ **성능**: Stateless 설계로 수평 확장 지원
+- 🛠️ **유지보수성**: Spring Cloud 기반 마이크로서비스 아키텍처
 
-- **초기**: 계층적 ID (간단하고 기억하기 쉬움)
-- **변경 후**: 8자 이상, 대소문자+숫자+특수문자 포함
-- **암호화**: BCrypt 해시
+---
 
-### API 설계 특징
-
-#### RESTful 설계
-
-- 명확한 HTTP 메서드 사용
-- 의미있는 URL 구조
-- 일관된 응답 형식
-
-#### 상태 관리
-
-- Stateless 설계
-- JWT 기반 상태 저장
-- 트랜잭션 안전성
-
-### 개발 도구
-
-#### Swagger UI
-
-- **URL**: `http://localhost:8081/swagger-ui.html`
-- **기능**: 실시간 API 테스트, 문서화
-- **인증**: JWT 쿠키 자동 인식
-
-#### 로깅
-
-- 구조화된 로그 메시지
-- 보안 정보 마스킹
-- 요청/응답 추적
-
-### 확장성 고려사항
-
-#### 마이크로서비스 아키텍처
-
-- Spring Cloud 기반
-- Service Discovery 지원
-- Config Server 활용
-
-#### 데이터베이스 최적화
-
-- 인덱스 최적화 (트리 경로, 계층적 ID)
-- JPA 관계 매핑 최적화
-- 쿼리 성능 튜닝
-
-#### 모니터링
-
-- Actuator 헬스체크
-- 메트릭 수집
-- 에러 추적
+_이 프로젝트는 실제 대기업의 ESG 공시 시스템 요구사항을 바탕으로 설계되었습니다._
