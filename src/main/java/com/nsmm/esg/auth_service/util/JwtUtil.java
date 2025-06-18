@@ -102,10 +102,10 @@ public class JwtUtil {
     }
 
     /**
-     * 토큰에서 사용자 ID 추출
+     * 토큰에서 협력사 ID 추출 (협력사인 경우)
      */
-    public Long getUserIdFromToken(String token) {
-        return getClaimsFromToken(token).get("userId", Long.class);
+    public Long getPartnerIdFromToken(String token) {
+        return getClaimsFromToken(token).get("partnerId", Long.class);
     }
 
     /**
@@ -159,7 +159,7 @@ public class JwtUtil {
                 .level(claims.get("level", Integer.class))
                 .treePath(claims.get("treePath", String.class))
                 .headquartersId(claims.get("headquartersId", Long.class))
-                .userId(claims.get("userId", Long.class))
+                .partnerId(claims.get("partnerId", Long.class))
                 .build();
     }
 
@@ -182,10 +182,10 @@ public class JwtUtil {
         claimsMap.put("companyName", claims.getCompanyName());
         claimsMap.put("userType", claims.getUserType());
         claimsMap.put("headquartersId", claims.getHeadquartersId());
-        claimsMap.put("userId", claims.getUserId());
 
-        // 협력사인 경우에만 추가
-        if ("PARTNER".equals(claims.getUserType())) {
+        // 협력사인 경우에만 partnerId 추가
+        if ("PARTNER".equals(claims.getUserType()) && claims.getPartnerId() != null) {
+            claimsMap.put("partnerId", claims.getPartnerId());
             claimsMap.put("level", claims.getLevel());
             claimsMap.put("treePath", claims.getTreePath());
         }

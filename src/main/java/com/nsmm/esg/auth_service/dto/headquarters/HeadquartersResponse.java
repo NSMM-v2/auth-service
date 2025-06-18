@@ -20,7 +20,10 @@ import java.time.LocalDateTime;
 public class HeadquartersResponse {
 
   @Schema(description = "본사 ID")
-  private Long id;
+  private Long headquartersId;
+
+  @Schema(description = "본사 UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+  private String uuid;
 
   @Schema(description = "본사 계정번호", example = "2412161700")
   private String hqAccountNumber;
@@ -60,7 +63,8 @@ public class HeadquartersResponse {
    */
   public static HeadquartersResponse from(Headquarters headquarters) {
     return HeadquartersResponse.builder()
-        .id(headquarters.getId())
+        .headquartersId(headquarters.getHeadquartersId())
+        .uuid(headquarters.getUuid())
         .hqAccountNumber(headquarters.getHqAccountNumber())
         .companyName(headquarters.getCompanyName())
         .email(headquarters.getEmail())

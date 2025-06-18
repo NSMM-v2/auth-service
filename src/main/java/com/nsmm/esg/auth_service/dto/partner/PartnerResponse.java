@@ -20,7 +20,10 @@ import java.time.LocalDateTime;
 public class PartnerResponse {
 
   @Schema(description = "협력사 ID")
-  private Long id;
+  private Long partnerId;
+
+  @Schema(description = "프론트엔드 UUID")
+  private String uuid;
 
   @Schema(description = "본사 계정번호")
   private String hqAccountNumber;
@@ -53,7 +56,7 @@ public class PartnerResponse {
   private String treePath;
 
   @Schema(description = "상태")
-  private Partner.PartnerStatus status;
+  private String status;
 
   @Schema(description = "비밀번호 변경 여부")
   private Boolean passwordChanged;
@@ -66,26 +69,27 @@ public class PartnerResponse {
 
   // 관계 정보
   @Schema(description = "상위 협력사 ID")
-  private Long parentId;
-
-  @Schema(description = "상위 협력사 계층적 아이디")
-  private String parentHierarchicalId;
+  private Long parentPartnerId;
 
   @Schema(description = "상위 협력사명")
-  private String parentCompanyName;
+  private String parentPartnerName;
 
   @Schema(description = "본사 ID")
   private Long headquartersId;
 
   @Schema(description = "본사명")
-  private String headquartersCompanyName;
+  private String headquartersName;
+
+  @Schema(description = "직속 하위 레벨 (권한 제어용)")
+  private Integer directChildLevel;
 
   /**
    * Entity를 Response DTO로 변환
    */
   public static PartnerResponse from(Partner partner) {
     return PartnerResponse.builder()
-        .id(partner.getId())
+        .partnerId(partner.getPartnerId())
+        .uuid(partner.getUuid())
         .hqAccountNumber(partner.getHqAccountNumber())
         .hierarchicalId(partner.getHierarchicalId())
         .fullAccountNumber(partner.getFullAccountNumber())
@@ -96,15 +100,33 @@ public class PartnerResponse {
         .address(partner.getAddress())
         .level(partner.getLevel())
         .treePath(partner.getTreePath())
-        .status(partner.getStatus())
+        .status(partner.getStatus().name())
         .passwordChanged(partner.getPasswordChanged())
+        .headquartersId(partner.getHeadquarters().getHeadquartersId())
+        .headquartersName(partner.getHeadquarters().getCompanyName())
+        .parentPartnerId(partner.getParentPartner() != null ? partner.getParentPartner().getPartnerId() : null)
+        .parentPartnerName(partner.getParentPartner() != null ? partner.getParentPartner().getCompanyName() : null)
+        .directChildLevel(partner.getDirectChildLevel())
         .createdAt(partner.getCreatedAt())
         .updatedAt(partner.getUpdatedAt())
-        .parentId(partner.getParent() != null ? partner.getParent().getId() : null)
-        .parentHierarchicalId(partner.getParent() != null ? partner.getParent().getHierarchicalId() : null)
-        .parentCompanyName(partner.getParent() != null ? partner.getParent().getCompanyName() : null)
-        .headquartersId(partner.getHeadquarters().getId())
-        .headquartersCompanyName(partner.getHeadquarters().getCompanyName())
+        .build();
+  }
+
+  /**
+   * 간소화된 협력사 정보 (목록 조회용)
+   */
+  public static PartnerResponse fromSimple(Partner partner) {
+    return PartnerResponse.builder()
+        .partnerId(partner.getPartnerId())
+        .uuid(partner.getUuid())
+        .hierarchicalId(partner.getHierarchicalId())
+        .fullAccountNumber(partner.getFullAccountNumber())
+        .companyName(partner.getCompanyName())
+        .contactPerson(partner.getContactPerson())
+        .level(partner.getLevel())
+        .status(partner.getStatus().name())
+        .passwordChanged(partner.getPasswordChanged())
+        .createdAt(partner.getCreatedAt())
         .build();
   }
 }

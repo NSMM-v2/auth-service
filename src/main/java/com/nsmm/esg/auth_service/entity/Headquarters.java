@@ -17,9 +17,11 @@ import java.time.LocalDateTime;
  * 특징: 루트 권한 보유, 모든 협력사 관리
  * 계정 형태: hqAccountNumber (예: 2412161700)
  * 로그인: 이메일 주소 사용
+ * UUID: 외부 API 및 프론트엔드 연동용 (접두사 없는 순수 UUID)
  */
 @Entity
 @Table(name = "headquarters", indexes = {
+        @Index(name = "idx_headquarters_uuid", columnList = "headquarters_uuid"),
         @Index(name = "idx_email", columnList = "email"),
         @Index(name = "idx_status", columnList = "status"),
         @Index(name = "idx_hq_account_number", columnList = "hq_account_number")
@@ -33,7 +35,11 @@ public class Headquarters {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id; // 본사 고유 식별자
+    @Column(name = "headquarters_id")
+    private Long headquartersId; // 본사 고유 식별자
+
+    @Column(name = "headquarters_uuid", unique = true, nullable = false, length = 36)
+    private String uuid; // 외부 API용 UUID (접두사 없는 순수 UUID)
 
     @Column(name = "hq_account_number", unique = true, length = 10)
     private String hqAccountNumber; // 본사 계정 번호 (2412161700)
@@ -90,7 +96,8 @@ public class Headquarters {
     public Headquarters updateInfo(String companyName, String name, String department,
             String position, String phone, String address) {
         return Headquarters.builder()
-                .id(this.id)
+                .headquartersId(this.headquartersId)
+                .uuid(this.uuid)
                 .hqAccountNumber(this.hqAccountNumber)
                 .companyName(companyName != null ? companyName : this.companyName)
                 .email(this.email)
@@ -116,7 +123,8 @@ public class Headquarters {
         }
 
         return Headquarters.builder()
-                .id(this.id)
+                .headquartersId(this.headquartersId)
+                .uuid(this.uuid)
                 .hqAccountNumber(this.hqAccountNumber)
                 .companyName(this.companyName)
                 .email(this.email)
@@ -142,7 +150,8 @@ public class Headquarters {
         }
 
         return Headquarters.builder()
-                .id(this.id)
+                .headquartersId(this.headquartersId)
+                .uuid(this.uuid)
                 .hqAccountNumber(this.hqAccountNumber)
                 .companyName(this.companyName)
                 .email(this.email)

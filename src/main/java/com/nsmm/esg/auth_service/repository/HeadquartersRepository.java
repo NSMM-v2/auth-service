@@ -14,11 +14,26 @@ import java.util.Optional;
  * 주요 기능:
  * - 이메일 기반 조회 (로그인용)
  * - 계정 번호 기반 조회 (JWT 검증용)
+ * - UUID 기반 조회 (API 연동용)
  * - 활성 상태 필터링
  * - 계정번호 생성 지원
  */
 @Repository
 public interface HeadquartersRepository extends JpaRepository<Headquarters, Long> {
+
+    // === UUID 기반 조회 (외부 API용) ===
+
+    /**
+     * UUID로 본사 조회
+     */
+    Optional<Headquarters> findByUuid(String uuid);
+
+    /**
+     * UUID 중복 확인
+     */
+    boolean existsByUuid(String uuid);
+
+    // === 기존 조회 메서드들 ===
 
     /**
      * 이메일로 본사 조회 (로그인용)

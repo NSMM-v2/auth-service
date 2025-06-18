@@ -22,26 +22,26 @@ public class AuthDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class TokenResponse {
-        
+
         private String accessToken;
         private String refreshToken;
         private String tokenType;
         private Long expiresIn;
         private LocalDateTime issuedAt;
         private LocalDateTime expiresAt;
-        
+
         // 사용자 정보
         private String accountNumber;
         private String companyName;
-        private String userType;  // "HEADQUARTERS" 또는 "PARTNER"
-        private Integer level;    // 협력사인 경우 레벨 정보
-        
+        private String userType; // "HEADQUARTERS" 또는 "PARTNER"
+        private Integer level; // 협력사인 경우 레벨 정보
+
         /**
          * 기본 토큰 응답 생성
          */
-        public static TokenResponse of(String accessToken, String refreshToken, 
-                                     Long expiresIn, String accountNumber, 
-                                     String companyName, String userType, Integer level) {
+        public static TokenResponse of(String accessToken, String refreshToken,
+                Long expiresIn, String accountNumber,
+                String companyName, String userType, Integer level) {
             LocalDateTime now = LocalDateTime.now();
             return TokenResponse.builder()
                     .accessToken(accessToken)
@@ -67,7 +67,7 @@ public class AuthDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class RefreshTokenRequest {
-        
+
         private String refreshToken;
     }
 
@@ -80,13 +80,13 @@ public class AuthDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ApiResponse<T> {
-        
+
         private boolean success;
         private String message;
         private T data;
         private String errorCode;
         private LocalDateTime timestamp;
-        
+
         /**
          * 성공 응답 생성
          */
@@ -98,7 +98,7 @@ public class AuthDto {
                     .timestamp(LocalDateTime.now())
                     .build();
         }
-        
+
         /**
          * 성공 응답 생성 (메시지 포함)
          */
@@ -110,7 +110,7 @@ public class AuthDto {
                     .timestamp(LocalDateTime.now())
                     .build();
         }
-        
+
         /**
          * 실패 응답 생성
          */
@@ -121,7 +121,7 @@ public class AuthDto {
                     .timestamp(LocalDateTime.now())
                     .build();
         }
-        
+
         /**
          * 실패 응답 생성 (에러 코드 포함)
          */
@@ -144,14 +144,14 @@ public class AuthDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class JwtClaims {
-        
+
         private String accountNumber;
         private String companyName;
-        private String userType;  // "HEADQUARTERS" 또는 "PARTNER"
-        private Integer level;    // 협력사인 경우 레벨 정보
-        private String treePath;  // 협력사인 경우 트리 경로
-        private Long headquartersId;  // 본사 ID
-        private Long userId;      // 사용자 ID (본사 또는 협력사 ID)
+        private String userType; // "HEADQUARTERS" 또는 "PARTNER"
+        private Integer level; // 협력사인 경우 레벨 정보
+        private String treePath; // 협력사인 경우 트리 경로
+        private Long headquartersId; // 본사 ID (항상 존재)
+        private Long partnerId; // 협력사인 경우에만 존재, 본사인 경우 null
     }
 
     /**
@@ -163,8 +163,8 @@ public class AuthDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class LogoutRequest {
-        
+
         private String accessToken;
         private String refreshToken;
     }
-} 
+}

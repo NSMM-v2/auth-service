@@ -57,7 +57,7 @@ public class PartnerCreateResponse {
    */
   public static PartnerCreateResponse from(Partner partner) {
     return PartnerCreateResponse.builder()
-        .partnerId(partner.getId())
+        .partnerId(partner.getPartnerId())
         .hqAccountNumber(partner.getHqAccountNumber())
         .hierarchicalId(partner.getHierarchicalId())
         .fullAccountNumber(partner.getFullAccountNumber())

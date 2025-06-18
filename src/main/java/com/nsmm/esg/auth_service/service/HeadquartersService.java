@@ -13,13 +13,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 본사 비즈니스 로직 서비스
  * 
  * 주요 기능:
- * - 본사 회원가입 (동적 계정번호 생성)
+ * - 본사 회원가입 (동적 계정번호 생성, UUID 자동 생성)
  * - 이메일 기반 로그인
+ * - UUID 기반 조회
  * - 본사 정보 관리
  */
 @Service
@@ -34,7 +36,7 @@ public class HeadquartersService {
 
     /**
      * 본사 회원가입
-     * 계정번호 자동 생성 (HQ + YYYYMMDD + 순번), 이메일 중복 검사
+     * 계정번호 자동 생성 (HQ + YYYYMMDD + 순번), UUID 자동 생성, 이메일 중복 검사
      */
     @Transactional
     public Headquarters register(HeadquartersSignupRequest registrationDto) {
@@ -46,6 +48,10 @@ public class HeadquartersService {
             throw new IllegalArgumentException("이미 등록된 이메일입니다: " + registrationDto.getEmail());
         }
 
+        // UUID 생성 (외부 API 연동용)
+        String uuid = generateUniqueUuid();
+        log.info("생성된 본사 UUID: {}", uuid);
+
         // 새로운 본사 계정번호 생성
         String hqAccountNumber = headquartersAccountService.generateAccountNumber();
         log.info("생성된 본사 계정번호: {}", hqAccountNumber);
@@ -55,6 +61,7 @@ public class HeadquartersService {
 
         // 본사 엔티티 생성
         Headquarters headquarters = Headquarters.builder()
+                .uuid(uuid)
                 .hqAccountNumber(hqAccountNumber)
                 .companyName(registrationDto.getCompanyName())
                 .email(registrationDto.getEmail())
@@ -68,8 +75,9 @@ public class HeadquartersService {
                 .build();
 
         Headquarters savedHeadquarters = headquartersRepository.save(headquarters);
-        log.info("본사 회원가입 완료: ID={}, 계정번호={}",
-                savedHeadquarters.getId(), savedHeadquarters.getHqAccountNumber());
+        log.info("본사 회원가입 완료: ID={}, UUID={}, 계정번호={}",
+                savedHeadquarters.getHeadquartersId(), savedHeadquarters.getUuid(),
+                savedHeadquarters.getHqAccountNumber());
 
         return savedHeadquarters;
     }
@@ -95,7 +103,7 @@ public class HeadquartersService {
         }
 
         log.info("본사 로그인 성공: ID={}, 계정번호={}",
-                headquarters.getId(), headquarters.getHqAccountNumber());
+                headquarters.getHeadquartersId(), headquarters.getHqAccountNumber());
 
         return headquarters;
     }
@@ -105,6 +113,14 @@ public class HeadquartersService {
      */
     public Optional<Headquarters> findById(Long id) {
         return headquartersRepository.findById(id);
+    }
+
+    /**
+     * 본사 정보 조회 (UUID)
+     */
+    public Optional<Headquarters> findByUuid(String uuid) {
+        log.info("UUID로 본사 조회: {}", uuid);
+        return headquartersRepository.findByUuid(uuid);
     }
 
     /**
@@ -123,7 +139,7 @@ public class HeadquartersService {
                 companyName, name, department, position, phone, address);
 
         Headquarters savedHeadquarters = headquartersRepository.save(updatedHeadquarters);
-        log.info("본사 정보 수정 완료: ID={}", savedHeadquarters.getId());
+        log.info("본사 정보 수정 완료: ID={}", savedHeadquarters.getHeadquartersId());
 
         return savedHeadquarters;
     }
@@ -161,6 +177,13 @@ public class HeadquartersService {
     }
 
     /**
+     * UUID 중복 확인
+     */
+    public boolean isUuidDuplicate(String uuid) {
+        return headquartersRepository.existsByUuid(uuid);
+    }
+
+    /**
      * 다음 생성될 본사 계정번호 미리 확인
      */
     public String getNextAccountNumber() {
@@ -172,5 +195,22 @@ public class HeadquartersService {
      */
     public boolean isValidAccountNumber(String accountNumber) {
         return headquartersAccountService.isValidAccountNumber(accountNumber);
+    }
+
+    /**
+     * 중복되지 않는 UUID 생성 (접두사 없는 순수 UUID)
+     */
+    private String generateUniqueUuid() {
+        String uuid;
+        int attempts = 0;
+        do {
+            uuid = UUID.randomUUID().toString();
+            attempts++;
+            if (attempts > 10) {
+                throw new RuntimeException("UUID 생성에 실패했습니다. 최대 시도 횟수를 초과했습니다.");
+            }
+        } while (headquartersRepository.existsByUuid(uuid));
+
+        return uuid;
     }
 }

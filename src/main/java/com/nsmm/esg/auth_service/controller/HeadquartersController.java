@@ -4,6 +4,7 @@ import com.nsmm.esg.auth_service.dto.AuthDto;
 import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersLoginRequest;
 import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersSignupRequest;
 import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersSignupResponse;
+import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersResponse;
 import com.nsmm.esg.auth_service.entity.Headquarters;
 import com.nsmm.esg.auth_service.service.HeadquartersService;
 import com.nsmm.esg.auth_service.util.JwtUtil;
@@ -21,8 +22,9 @@ import org.springframework.web.bind.annotation.*;
  * 본사 관리 컨트롤러
  * 
  * 주요 기능:
- * - 본사 회원가입 (동적 계정번호 생성)
+ * - 본사 회원가입 (동적 계정번호 생성, UUID 자동 생성)
  * - 이메일 기반 로그인
+ * - UUID 기반 조회
  * - JWT 쿠키 인증
  * - 본사 정보 관리
  */
@@ -37,11 +39,11 @@ public class HeadquartersController {
         private final JwtUtil jwtUtil;
 
         /**
-         * 본사 회원가
-         * 계정번호 자동 생성 (HQ + YYYYMMDD + 순번), 이메일 중복 검사
+         * 본사 회원가입
+         * 계정번호 자동 생성 (HQ + YYYYMMDD + 순번), UUID 자동 생성, 이메일 중복 검사
          */
         @PostMapping("/register")
-        @Operation(summary = "본사 회원가입", description = "계정번호 자동 생성을 통한 본사 회원가입")
+        @Operation(summary = "본사 회원가입", description = "계정번호 및 UUID 자동 생성을 통한 본사 회원가입")
         public ResponseEntity<AuthDto.ApiResponse<HeadquartersSignupResponse>> register(
                         @Valid @RequestBody HeadquartersSignupRequest request) {
 
@@ -86,8 +88,8 @@ public class HeadquartersController {
                                         .userType("HEADQUARTERS")
                                         .level(null) // 본사는 레벨 없음
                                         .treePath(null) // 본사는 트리 경로 없음
-                                        .headquartersId(headquarters.getId())
-                                        .userId(headquarters.getId())
+                                        .headquartersId(headquarters.getHeadquartersId())
+                                        .partnerId(null) // 본사는 협력사 ID 없음
                                         .build();
 
                         // 토큰 생성
@@ -134,6 +136,35 @@ public class HeadquartersController {
         }
 
         /**
+         * UUID로 본사 정보 조회
+         */
+        @GetMapping("/by-uuid/{uuid}")
+        @Operation(summary = "UUID로 본사 정보 조회", description = "UUID를 이용해 본사 정보를 조회합니다")
+        public ResponseEntity<AuthDto.ApiResponse<HeadquartersResponse>> getHeadquartersByUuid(
+                        @PathVariable String uuid) {
+
+                log.info("UUID로 본사 정보 조회 요청: {}", uuid);
+
+                try {
+                        Headquarters headquarters = headquartersService.findByUuid(uuid)
+                                        .orElseThrow(() -> new IllegalArgumentException(
+                                                        "존재하지 않는 본사입니다: " + uuid));
+
+                        HeadquartersResponse response = HeadquartersResponse.from(headquarters);
+
+                        return ResponseEntity.ok(AuthDto.ApiResponse.success(response, "본사 정보가 조회되었습니다."));
+                } catch (IllegalArgumentException e) {
+                        log.warn("UUID로 본사 정보 조회 실패: {}", e.getMessage());
+                        return ResponseEntity.badRequest()
+                                        .body(AuthDto.ApiResponse.error(e.getMessage(), "HEADQUARTERS_NOT_FOUND"));
+                } catch (Exception e) {
+                        log.error("UUID로 본사 정보 조회 중 오류 발생", e);
+                        return ResponseEntity.status(500)
+                                        .body(AuthDto.ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
+                }
+        }
+
+        /**
          * 이메일 중복 확인
          */
         @GetMapping("/check-email")
@@ -144,6 +175,24 @@ public class HeadquartersController {
                 String message = isDuplicate ? "이미 사용 중인 이메일입니다." : "사용 가능한 이메일입니다.";
 
                 return ResponseEntity.ok(AuthDto.ApiResponse.success(!isDuplicate, message));
+        }
+
+        /**
+         * UUID 중복 확인
+         */
+        @GetMapping("/check-uuid")
+        @Operation(summary = "UUID 중복 확인", description = "본사 생성 시 UUID 중복 여부 확인")
+        public ResponseEntity<AuthDto.ApiResponse<Boolean>> checkUuid(@RequestParam String uuid) {
+
+                try {
+                        boolean isDuplicate = headquartersService.isUuidDuplicate(uuid);
+                        String message = isDuplicate ? "이미 사용 중인 UUID입니다." : "사용 가능한 UUID입니다.";
+
+                        return ResponseEntity.ok(AuthDto.ApiResponse.success(!isDuplicate, message));
+                } catch (IllegalArgumentException e) {
+                        return ResponseEntity.badRequest()
+                                        .body(AuthDto.ApiResponse.error("잘못된 UUID 형식입니다.", "INVALID_UUID"));
+                }
         }
 
         /**

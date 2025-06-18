@@ -60,7 +60,7 @@ public class PartnerTreeService {
    * @return 1차 협력사 여부
    */
   public boolean isTopLevel(Partner partner) {
-    return partner.getParent() == null;
+    return partner.getParentPartner() == null;
   }
 
   /**
@@ -102,5 +102,23 @@ public class PartnerTreeService {
 
     // 기본 형식 검증: /숫자/L숫자-숫자/.../
     return treePath.matches("^/\\d+(/L\\d+-\\d{3})+/$");
+  }
+
+  /**
+   * 트리 경로 생성 (통합 메서드)
+   * 
+   * @param hqAccountNumber 본사 계정번호
+   * @param hierarchicalId  협력사 계층적 ID
+   * @param parentTreePath  상위 협력사의 트리 경로 (1차 협력사인 경우 null)
+   * @return 생성된 트리 경로
+   */
+  public String generateTreePath(String hqAccountNumber, String hierarchicalId, String parentTreePath) {
+    if (parentTreePath == null) {
+      // 1차 협력사: /{본사계정번호}/L1-001/
+      return String.format("/%s/%s/", hqAccountNumber, hierarchicalId);
+    } else {
+      // 하위 협력사: 상위 경로 + 현재 계층적 ID/
+      return parentTreePath + hierarchicalId + "/";
+    }
   }
 }

@@ -16,11 +16,11 @@ public class SecurityUtil {
      */
     public AuthDto.JwtClaims getCurrentUserClaims() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        
+
         if (authentication != null && authentication.getPrincipal() instanceof AuthDto.JwtClaims) {
             return (AuthDto.JwtClaims) authentication.getPrincipal();
         }
-        
+
         throw new IllegalStateException("인증되지 않은 사용자입니다.");
     }
 
@@ -53,10 +53,27 @@ public class SecurityUtil {
     }
 
     /**
-     * 현재 사용자의 사용자 ID 반환
+     * 현재 사용자의 협력사 ID 반환 (협력사인 경우)
      */
-    public Long getCurrentUserId() {
-        return getCurrentUserClaims().getUserId();
+    public Long getCurrentPartnerId() {
+        AuthDto.JwtClaims claims = getCurrentUserClaims();
+        if (isPartner()) {
+            return claims.getPartnerId();
+        }
+        throw new IllegalStateException("본사 사용자는 협력사 ID가 없습니다.");
+    }
+
+    /**
+     * 현재 사용자의 엔티티 ID 반환 (본사면 headquartersId, 협력사면 partnerId)
+     */
+    public Long getCurrentEntityId() {
+        AuthDto.JwtClaims claims = getCurrentUserClaims();
+        if (isHeadquarters()) {
+            return claims.getHeadquartersId();
+        } else if (isPartner()) {
+            return claims.getPartnerId();
+        }
+        throw new IllegalStateException("알 수 없는 사용자 타입입니다.");
     }
 
     /**
@@ -100,8 +117,8 @@ public class SecurityUtil {
      */
     public boolean isAuthenticated() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication != null && 
-               authentication.isAuthenticated() && 
-               authentication.getPrincipal() instanceof AuthDto.JwtClaims;
+        return authentication != null &&
+                authentication.isAuthenticated() &&
+                authentication.getPrincipal() instanceof AuthDto.JwtClaims;
     }
-} 
+}
