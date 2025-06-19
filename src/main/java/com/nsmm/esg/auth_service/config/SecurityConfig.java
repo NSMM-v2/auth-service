@@ -102,6 +102,10 @@ public class SecurityConfig {
 
                                                 // === 인증된 사용자 공통 엔드포인트 (@PreAuthorize로 세부 권한 제어) ===
                                                 .requestMatchers(
+                                                                // 현재 사용자 정보 조회
+                                                                "/api/v1/headquarters/me",
+                                                                "/api/v1/partners/me",
+
                                                                 // UUID 기반 협력사 생성
                                                                 "/api/v1/partners/create-by-uuid",
 

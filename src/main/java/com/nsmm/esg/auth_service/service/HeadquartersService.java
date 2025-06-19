@@ -213,4 +213,25 @@ public class HeadquartersService {
 
         return uuid;
     }
+
+    /**
+     * 현재 로그인한 본사 사용자 정보 조회
+     * JWT 토큰에서 추출한 본사 ID로 본사 정보를 조회합니다.
+     */
+    public Headquarters getCurrentUser(Long currentHeadquartersId) {
+        log.info("현재 본사 사용자 정보 조회: ID={}", currentHeadquartersId);
+
+        Headquarters headquarters = headquartersRepository.findById(currentHeadquartersId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 본사입니다: " + currentHeadquartersId));
+
+        // 계정 상태 확인
+        if (!headquarters.isActive()) {
+            throw new IllegalStateException("비활성화된 계정입니다.");
+        }
+
+        log.info("현재 본사 사용자 정보 조회 완료: 계정번호={}, 회사명={}",
+                headquarters.getHqAccountNumber(), headquarters.getCompanyName());
+
+        return headquarters;
+    }
 }

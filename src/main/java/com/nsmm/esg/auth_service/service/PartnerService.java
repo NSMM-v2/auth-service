@@ -222,6 +222,27 @@ public class PartnerService {
         }
 
         /**
+         * 현재 로그인한 협력사 사용자 정보 조회
+         * JWT 토큰에서 추출한 협력사 ID로 협력사 정보를 조회합니다.
+         */
+        public Partner getCurrentUser(Long currentPartnerId) {
+                log.info("현재 협력사 사용자 정보 조회: ID={}", currentPartnerId);
+
+                Partner partner = partnerRepository.findById(currentPartnerId)
+                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 협력사입니다: " + currentPartnerId));
+
+                // 계정 상태 확인
+                if (!Partner.PartnerStatus.ACTIVE.equals(partner.getStatus())) {
+                        throw new IllegalStateException("비활성화된 계정입니다.");
+                }
+
+                log.info("현재 협력사 사용자 정보 조회 완료: 계층적아이디={}, 회사명={}",
+                                partner.getHierarchicalId(), partner.getCompanyName());
+
+                return partner;
+        }
+
+        /**
          * 협력사 정보 조회 (UUID)
          */
         public Optional<Partner> findByUuid(String uuid) {

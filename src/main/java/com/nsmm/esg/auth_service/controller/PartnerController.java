@@ -22,6 +22,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -50,6 +52,16 @@ public class PartnerController {
         private final HeadquartersService headquartersService;
         private final JwtUtil jwtUtil;
         private final SecurityUtil securityUtil;
+
+        // JWT 쿠키 설정값 주입
+        @Value("${jwt.cookie.secure:false}")
+        private boolean cookieSecure;
+
+        @Value("${jwt.cookie.http-only:true}")
+        private boolean cookieHttpOnly;
+
+        @Value("${jwt.cookie.same-site:strict}")
+        private String cookieSameSite;
 
         /**
          * UUID 기반 협력사 생성 (DART API 기반)
@@ -435,6 +447,42 @@ public class PartnerController {
         }
 
         /**
+         * 현재 로그인한 협력사 사용자 정보 조회
+         * JWT 토큰을 기반으로 현재 로그인한 협력사 사용자의 정보를 반환합니다.
+         */
+        @GetMapping("/me")
+        @Operation(summary = "현재 협력사 사용자 정보 조회", description = "JWT 토큰을 기반으로 현재 로그인한 협력사 사용자 정보를 조회합니다")
+        @PreAuthorize("hasRole('PARTNER')")
+        @SecurityRequirement(name = "JWT")
+        public ResponseEntity<ApiResponse<PartnerResponse>> getCurrentUser() {
+
+                log.info("현재 협력사 사용자 정보 조회 요청");
+
+                try {
+                        // JWT에서 현재 협력사 ID 추출
+                        Long currentPartnerId = securityUtil.getCurrentPartnerId();
+
+                        // 협력사 정보 조회
+                        Partner partner = partnerService.getCurrentUser(currentPartnerId);
+                        PartnerResponse response = PartnerResponse.from(partner);
+
+                        return ResponseEntity.ok(ApiResponse.success(response, "현재 협력사 사용자 정보가 조회되었습니다."));
+                } catch (IllegalArgumentException e) {
+                        log.warn("현재 협력사 사용자 정보 조회 실패: {}", e.getMessage());
+                        return ResponseEntity.badRequest()
+                                        .body(ApiResponse.error(e.getMessage(), "USER_NOT_FOUND"));
+                } catch (IllegalStateException e) {
+                        log.warn("현재 협력사 사용자 계정 상태 오류: {}", e.getMessage());
+                        return ResponseEntity.badRequest()
+                                        .body(ApiResponse.error(e.getMessage(), "ACCOUNT_INACTIVE"));
+                } catch (Exception e) {
+                        log.error("현재 협력사 사용자 정보 조회 중 오류 발생", e);
+                        return ResponseEntity.status(500)
+                                        .body(ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
+                }
+        }
+
+        /**
          * 이메일 중복 확인
          */
         @GetMapping("/check-email")
@@ -470,12 +518,12 @@ public class PartnerController {
          */
         private void setJwtCookie(HttpServletResponse response, String token) {
                 Cookie jwtCookie = new Cookie("jwt", token);
-                jwtCookie.setHttpOnly(true); // XSS 방지
-                jwtCookie.setSecure(true); // HTTPS에서만 전송
+                jwtCookie.setHttpOnly(cookieHttpOnly); // 설정값 사용
+                jwtCookie.setSecure(cookieSecure); // 설정값 사용 (개발환경: false)
                 jwtCookie.setPath("/"); // 모든 경로에서 사용
                 jwtCookie.setMaxAge((int) (jwtUtil.getAccessTokenExpiration() / 1000)); // 토큰 만료시간과 동일
                 response.addCookie(jwtCookie);
-                log.debug("JWT 쿠키 설정 완료");
+                log.debug("JWT 쿠키 설정 완료 (Secure: {}, HttpOnly: {})", cookieSecure, cookieHttpOnly);
         }
 
         /**
@@ -483,8 +531,8 @@ public class PartnerController {
          */
         private void clearJwtCookie(HttpServletResponse response) {
                 Cookie jwtCookie = new Cookie("jwt", "");
-                jwtCookie.setHttpOnly(true);
-                jwtCookie.setSecure(true);
+                jwtCookie.setHttpOnly(cookieHttpOnly);
+                jwtCookie.setSecure(cookieSecure); // 설정값 사용
                 jwtCookie.setPath("/");
                 jwtCookie.setMaxAge(0); // 즉시 만료
                 response.addCookie(jwtCookie);

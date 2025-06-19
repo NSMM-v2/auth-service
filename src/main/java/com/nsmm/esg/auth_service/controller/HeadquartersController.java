@@ -1,3 +1,4 @@
+
 package com.nsmm.esg.auth_service.controller;
 
 import com.nsmm.esg.auth_service.dto.ApiResponse;
@@ -10,14 +11,19 @@ import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersResponse;
 import com.nsmm.esg.auth_service.entity.Headquarters;
 import com.nsmm.esg.auth_service.service.HeadquartersService;
 import com.nsmm.esg.auth_service.util.JwtUtil;
+import com.nsmm.esg.auth_service.util.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -39,6 +45,17 @@ public class HeadquartersController {
 
         private final HeadquartersService headquartersService;
         private final JwtUtil jwtUtil;
+        private final SecurityUtil securityUtil;
+
+        // JWT 쿠키 설정값 주입
+        @Value("${jwt.cookie.secure:false}")
+        private boolean cookieSecure;
+
+        @Value("${jwt.cookie.http-only:true}")
+        private boolean cookieHttpOnly;
+
+        @Value("${jwt.cookie.same-site:strict}")
+        private String cookieSameSite;
 
         /**
          * 본사 회원가입
@@ -138,6 +155,42 @@ public class HeadquartersController {
         }
 
         /**
+         * 현재 로그인한 본사 사용자 정보 조회
+         * JWT 토큰을 기반으로 현재 로그인한 본사 사용자의 정보를 반환합니다.
+         */
+        @GetMapping("/me")
+        @Operation(summary = "현재 본사 사용자 정보 조회", description = "JWT 토큰을 기반으로 현재 로그인한 본사 사용자 정보를 조회합니다")
+        @PreAuthorize("hasRole('HEADQUARTERS')")
+        @SecurityRequirement(name = "JWT")
+        public ResponseEntity<ApiResponse<HeadquartersResponse>> getCurrentUser() {
+
+                log.info("현재 본사 사용자 정보 조회 요청");
+
+                try {
+                        // JWT에서 현재 본사 ID 추출
+                        Long currentHeadquartersId = securityUtil.getCurrentHeadquartersId();
+
+                        // 본사 정보 조회
+                        Headquarters headquarters = headquartersService.getCurrentUser(currentHeadquartersId);
+                        HeadquartersResponse response = HeadquartersResponse.from(headquarters);
+
+                        return ResponseEntity.ok(ApiResponse.success(response, "현재 본사 사용자 정보가 조회되었습니다."));
+                } catch (IllegalArgumentException e) {
+                        log.warn("현재 본사 사용자 정보 조회 실패: {}", e.getMessage());
+                        return ResponseEntity.badRequest()
+                                        .body(ApiResponse.error(e.getMessage(), "USER_NOT_FOUND"));
+                } catch (IllegalStateException e) {
+                        log.warn("현재 본사 사용자 계정 상태 오류: {}", e.getMessage());
+                        return ResponseEntity.badRequest()
+                                        .body(ApiResponse.error(e.getMessage(), "ACCOUNT_INACTIVE"));
+                } catch (Exception e) {
+                        log.error("현재 본사 사용자 정보 조회 중 오류 발생", e);
+                        return ResponseEntity.status(500)
+                                        .body(ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
+                }
+        }
+
+        /**
          * UUID로 본사 정보 조회
          */
         @GetMapping("/by-uuid/{uuid}")
@@ -233,12 +286,12 @@ public class HeadquartersController {
          */
         private void setJwtCookie(HttpServletResponse response, String token) {
                 Cookie jwtCookie = new Cookie("jwt", token);
-                jwtCookie.setHttpOnly(true); // XSS 방지
-                jwtCookie.setSecure(true); // HTTPS에서만 전송
+                jwtCookie.setHttpOnly(cookieHttpOnly); // 설정값 사용
+                jwtCookie.setSecure(cookieSecure); // 설정값 사용 (개발환경: false)
                 jwtCookie.setPath("/"); // 모든 경로에서 사용
                 jwtCookie.setMaxAge((int) (jwtUtil.getAccessTokenExpiration() / 1000)); // 토큰 만료시간과 동일
                 response.addCookie(jwtCookie);
-                log.debug("JWT 쿠키 설정 완료");
+                log.debug("JWT 쿠키 설정 완료 (Secure: {}, HttpOnly: {})", cookieSecure, cookieHttpOnly);
         }
 
         /**
@@ -246,8 +299,8 @@ public class HeadquartersController {
          */
         private void clearJwtCookie(HttpServletResponse response) {
                 Cookie jwtCookie = new Cookie("jwt", "");
-                jwtCookie.setHttpOnly(true);
-                jwtCookie.setSecure(true);
+                jwtCookie.setHttpOnly(cookieHttpOnly);
+                jwtCookie.setSecure(cookieSecure); // 설정값 사용
                 jwtCookie.setPath("/");
                 jwtCookie.setMaxAge(0); // 즉시 만료
                 response.addCookie(jwtCookie);
