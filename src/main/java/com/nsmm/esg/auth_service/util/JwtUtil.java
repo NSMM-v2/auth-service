@@ -1,6 +1,6 @@
 package com.nsmm.esg.auth_service.util;
 
-import com.nsmm.esg.auth_service.dto.AuthDto;
+import com.nsmm.esg.auth_service.dto.JwtClaims;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +35,7 @@ public class JwtUtil {
     /**
      * Access Token 생성
      */
-    public String generateAccessToken(AuthDto.JwtClaims claims) {
+    public String generateAccessToken(JwtClaims claims) {
         Map<String, Object> claimsMap = createClaimsMap(claims);
 
         return Jwts.builder()
@@ -149,10 +149,10 @@ public class JwtUtil {
     /**
      * 토큰에서 모든 클레임 정보 추출
      */
-    public AuthDto.JwtClaims getAllClaimsFromToken(String token) {
+    public JwtClaims getAllClaimsFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
 
-        return AuthDto.JwtClaims.builder()
+        return JwtClaims.builder()
                 .accountNumber(claims.getSubject())
                 .companyName(claims.get("companyName", String.class))
                 .userType(claims.get("userType", String.class))
@@ -177,7 +177,7 @@ public class JwtUtil {
     /**
      * Claims Map 생성
      */
-    private Map<String, Object> createClaimsMap(AuthDto.JwtClaims claims) {
+    private Map<String, Object> createClaimsMap(JwtClaims claims) {
         Map<String, Object> claimsMap = new HashMap<>();
         claimsMap.put("companyName", claims.getCompanyName());
         claimsMap.put("userType", claims.getUserType());

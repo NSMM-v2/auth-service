@@ -1,6 +1,6 @@
 package com.nsmm.esg.auth_service.util;
 
-import com.nsmm.esg.auth_service.dto.AuthDto;
+import com.nsmm.esg.auth_service.dto.JwtClaims;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -14,11 +14,11 @@ public class SecurityUtil {
     /**
      * 현재 인증된 사용자의 JWT Claims 반환
      */
-    public AuthDto.JwtClaims getCurrentUserClaims() {
+    public JwtClaims getCurrentUserClaims() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication != null && authentication.getPrincipal() instanceof AuthDto.JwtClaims) {
-            return (AuthDto.JwtClaims) authentication.getPrincipal();
+        if (authentication != null && authentication.getPrincipal() instanceof JwtClaims) {
+            return (JwtClaims) authentication.getPrincipal();
         }
 
         throw new IllegalStateException("인증되지 않은 사용자입니다.");
@@ -56,7 +56,7 @@ public class SecurityUtil {
      * 현재 사용자의 협력사 ID 반환 (협력사인 경우)
      */
     public Long getCurrentPartnerId() {
-        AuthDto.JwtClaims claims = getCurrentUserClaims();
+        JwtClaims claims = getCurrentUserClaims();
         if (isPartner()) {
             return claims.getPartnerId();
         }
@@ -67,7 +67,7 @@ public class SecurityUtil {
      * 현재 사용자의 엔티티 ID 반환 (본사면 headquartersId, 협력사면 partnerId)
      */
     public Long getCurrentEntityId() {
-        AuthDto.JwtClaims claims = getCurrentUserClaims();
+        JwtClaims claims = getCurrentUserClaims();
         if (isHeadquarters()) {
             return claims.getHeadquartersId();
         } else if (isPartner()) {
@@ -94,7 +94,7 @@ public class SecurityUtil {
      * 현재 사용자의 레벨 반환 (협력사인 경우)
      */
     public Integer getCurrentLevel() {
-        AuthDto.JwtClaims claims = getCurrentUserClaims();
+        JwtClaims claims = getCurrentUserClaims();
         if (isPartner()) {
             return claims.getLevel();
         }
@@ -105,7 +105,7 @@ public class SecurityUtil {
      * 현재 사용자의 트리 경로 반환 (협력사인 경우)
      */
     public String getCurrentTreePath() {
-        AuthDto.JwtClaims claims = getCurrentUserClaims();
+        JwtClaims claims = getCurrentUserClaims();
         if (isPartner()) {
             return claims.getTreePath();
         }
@@ -119,6 +119,6 @@ public class SecurityUtil {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return authentication != null &&
                 authentication.isAuthenticated() &&
-                authentication.getPrincipal() instanceof AuthDto.JwtClaims;
+                authentication.getPrincipal() instanceof JwtClaims;
     }
 }

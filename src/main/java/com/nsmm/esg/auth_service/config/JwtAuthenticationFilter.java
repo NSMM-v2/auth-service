@@ -1,6 +1,6 @@
 package com.nsmm.esg.auth_service.config;
 
-import com.nsmm.esg.auth_service.dto.AuthDto;
+import com.nsmm.esg.auth_service.dto.JwtClaims;
 import com.nsmm.esg.auth_service.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -42,7 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (StringUtils.hasText(jwt) && jwtUtil.validateToken(jwt)) {
                 // JWT에서 사용자 정보 추출
-                AuthDto.JwtClaims claims = jwtUtil.getAllClaimsFromToken(jwt);
+                JwtClaims claims = jwtUtil.getAllClaimsFromToken(jwt);
 
                 // 권한 설정
                 String role = "ROLE_" + claims.getUserType(); // ROLE_HEADQUARTERS 또는 ROLE_PARTNER
