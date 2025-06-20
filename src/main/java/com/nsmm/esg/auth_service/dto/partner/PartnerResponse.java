@@ -34,8 +34,14 @@ public class PartnerResponse {
   @Schema(description = "전체 계정번호")
   private String fullAccountNumber;
 
+  @Schema(description = "계정번호 (프론트엔드 호환용)")
+  private String accountNumber;
+
   @Schema(description = "회사명")
   private String companyName;
+
+  @Schema(description = "사용자 타입", example = "PARTNER")
+  private String userType;
 
   @Schema(description = "이메일")
   private String email;
@@ -93,7 +99,9 @@ public class PartnerResponse {
         .hqAccountNumber(partner.getHqAccountNumber())
         .hierarchicalId(partner.getHierarchicalId())
         .fullAccountNumber(partner.getFullAccountNumber())
+        .accountNumber(partner.getFullAccountNumber()) // 프론트엔드 호환용
         .companyName(partner.getCompanyName())
+        .userType("PARTNER") // 협력사 타입 고정
         .email(partner.getEmail())
         .contactPerson(partner.getContactPerson())
         .phone(partner.getPhone())
@@ -121,7 +129,9 @@ public class PartnerResponse {
         .uuid(partner.getUuid())
         .hierarchicalId(partner.getHierarchicalId())
         .fullAccountNumber(partner.getFullAccountNumber())
+        .accountNumber(partner.getFullAccountNumber()) // 프론트엔드 호환용
         .companyName(partner.getCompanyName())
+        .userType("PARTNER") // 협력사 타입 고정
         .contactPerson(partner.getContactPerson())
         .level(partner.getLevel())
         .status(partner.getStatus().name())

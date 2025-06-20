@@ -29,7 +29,13 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             HttpServletResponse response,
             AuthenticationException authException) throws IOException, ServletException {
 
-        log.error("인증되지 않은 요청: {} {}", request.getMethod(), request.getRequestURI());
+        // /me API 호출은 일반적인 인증 확인이므로 INFO 레벨로 로깅
+        String uri = request.getRequestURI();
+        if (uri.endsWith("/me")) {
+            log.info("인증 확인 요청: {} {}", request.getMethod(), uri);
+        } else {
+            log.warn("인증되지 않은 요청: {} {}", request.getMethod(), uri);
+        }
 
         // 응답 설정
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

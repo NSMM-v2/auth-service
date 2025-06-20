@@ -28,8 +28,14 @@ public class HeadquartersResponse {
   @Schema(description = "본사 계정번호", example = "2412161700")
   private String hqAccountNumber;
 
+  @Schema(description = "계정번호 (프론트엔드 호환용)", example = "HQ001")
+  private String accountNumber;
+
   @Schema(description = "회사명")
   private String companyName;
+
+  @Schema(description = "사용자 타입", example = "HEADQUARTERS")
+  private String userType;
 
   @Schema(description = "이메일")
   private String email;
@@ -66,7 +72,9 @@ public class HeadquartersResponse {
         .headquartersId(headquarters.getHeadquartersId())
         .uuid(headquarters.getUuid())
         .hqAccountNumber(headquarters.getHqAccountNumber())
+        .accountNumber(headquarters.getHqAccountNumber()) // 프론트엔드 호환용
         .companyName(headquarters.getCompanyName())
+        .userType("HEADQUARTERS") // 본사 타입 고정
         .email(headquarters.getEmail())
         .name(headquarters.getName())
         .department(headquarters.getDepartment())
