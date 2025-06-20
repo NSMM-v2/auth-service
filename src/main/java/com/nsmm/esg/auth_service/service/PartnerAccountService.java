@@ -171,7 +171,6 @@ public class PartnerAccountService {
    * 계층적 아이디 중복 확인 (헬퍼 메서드)
    */
   private boolean isHierarchicalIdDuplicate(Long headquartersId, int level, int sequence) {
-    String candidateId = String.format("L%d-%03d", level, sequence);
     return partnerRepository.countByHeadquartersAndLevel(headquartersId, level) >= sequence;
   }
 }
