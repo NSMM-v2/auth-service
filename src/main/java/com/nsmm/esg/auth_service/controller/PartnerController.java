@@ -134,22 +134,23 @@ public class PartnerController {
 
         /**
          * 협력사 로그인
-         * 본사계정번호 + 계층적아이디 + 비밀번호
+         * 전체 계정번호 + 이메일 + 비밀번호
+         * 프론트엔드 호환성을 위해 accountNumber를 파싱하여 처리
          */
         @PostMapping("/login")
-        @Operation(summary = "협력사 로그인", description = "본사계정번호 + 계층적아이디 + 비밀번호로 로그인")
+        @Operation(summary = "협력사 로그인", description = "본사계정번호 + 협력사아이디 + 비밀번호로 로그인")
         public ResponseEntity<ApiResponse<TokenResponse>> login(
                         @Valid @RequestBody PartnerLoginRequest request,
                         HttpServletResponse response) {
 
-                log.info("협력사 로그인 요청: 본사계정번호={}, 계층적아이디={}",
-                                request.getHqAccountNumber(), request.getHierarchicalId());
+                log.info("협력사 로그인 요청: 본사계정번호={}, 협력사아이디={}",
+                                request.getHqAccountNumber(), request.getPartnerCode());
 
                 try {
-                        // 협력사 인증
-                        Partner partner = partnerService.login(
+                        // 협력사 인증 (새로운 방식)
+                        Partner partner = partnerService.loginByHqAndPartnerCode(
                                         request.getHqAccountNumber(),
-                                        request.getHierarchicalId(),
+                                        request.getPartnerCode(),
                                         request.getPassword());
 
                         // JWT 클레임 생성
@@ -170,17 +171,19 @@ public class PartnerController {
                         // JWT 쿠키 설정
                         setJwtCookie(response, accessToken);
 
-                        // 응답 생성
-                        TokenResponse tokenResponse = TokenResponse.of(
+                        // 응답 생성 (passwordChanged 포함)
+                        TokenResponse tokenResponse = TokenResponse.ofPartner(
                                         accessToken,
                                         refreshToken,
                                         jwtUtil.getAccessTokenExpiration(),
                                         partner.getFullAccountNumber(),
                                         partner.getCompanyName(),
                                         "PARTNER",
-                                        partner.getLevel());
+                                        partner.getLevel(),
+                                        partner.getPasswordChanged());
 
-                        log.info("협력사 로그인 성공: 계층적아이디={}", partner.getHierarchicalId());
+                        log.info("협력사 로그인 성공: 계정번호={}, 비밀번호변경여부={}",
+                                        partner.getFullAccountNumber(), partner.getPasswordChanged());
 
                         return ResponseEntity.ok(ApiResponse.success(tokenResponse, "로그인이 성공적으로 완료되었습니다."));
                 } catch (Exception e) {

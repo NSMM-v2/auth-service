@@ -257,6 +257,34 @@ public class PartnerService {
         }
 
         /**
+         * 협력사 로그인 (본사계정번호 + 협력사아이디 + 비밀번호)
+         * 프론트엔드 요구사항에 맞는 새로운 로그인 방식
+         */
+        public Partner loginByHqAndPartnerCode(String hqAccountNumber, String partnerCode, String password) {
+                log.info("협력사 로그인 시도: 본사계정번호={}, 협력사아이디={}", hqAccountNumber, partnerCode);
+
+                // hqAccountNumber와 hierarchicalId(partnerCode)로 협력사 조회
+                Partner partner = partnerRepository.findByHqAccountNumberAndHierarchicalId(
+                                hqAccountNumber, partnerCode)
+                                .orElseThrow(() -> new UsernameNotFoundException("존재하지 않는 협력사 계정입니다."));
+
+                // 계정 상태 확인
+                if (!Partner.PartnerStatus.ACTIVE.equals(partner.getStatus())) {
+                        throw new BadCredentialsException("비활성화된 계정입니다.");
+                }
+
+                // 비밀번호 검증
+                if (!passwordUtil.matches(password, partner.getPassword())) {
+                        throw new BadCredentialsException("비밀번호가 올바르지 않습니다.");
+                }
+
+                log.info("협력사 로그인 성공: 계정번호={}, 회사명={}, 비밀번호변경여부={}",
+                                partner.getFullAccountNumber(), partner.getCompanyName(), partner.getPasswordChanged());
+
+                return partner;
+        }
+
+        /**
          * 본사별 1차 협력사 목록 조회
          */
         public List<Partner> findFirstLevelPartners(Long headquartersId) {

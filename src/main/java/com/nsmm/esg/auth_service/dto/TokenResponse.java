@@ -33,6 +33,7 @@ public class TokenResponse {
   private String companyName; // 회사명
   private String userType; // "HEADQUARTERS" 또는 "PARTNER"
   private Integer level; // 협력사인 경우 레벨 정보
+  private Boolean passwordChanged; // 비밀번호 변경 여부 (협력사만)
 
   /**
    * 기본 토큰 응답 생성
@@ -52,6 +53,28 @@ public class TokenResponse {
         .companyName(companyName)
         .userType(userType)
         .level(level)
+        .build();
+  }
+
+  /**
+   * 협력사용 토큰 응답 생성 (passwordChanged 포함)
+   */
+  public static TokenResponse ofPartner(String accessToken, String refreshToken,
+      Long expiresIn, String accountNumber,
+      String companyName, String userType, Integer level, Boolean passwordChanged) {
+    LocalDateTime now = LocalDateTime.now();
+    return TokenResponse.builder()
+        .accessToken(accessToken)
+        .refreshToken(refreshToken)
+        .tokenType("Bearer")
+        .expiresIn(expiresIn)
+        .issuedAt(now)
+        .expiresAt(now.plusSeconds(expiresIn / 1000))
+        .accountNumber(accountNumber)
+        .companyName(companyName)
+        .userType(userType)
+        .level(level)
+        .passwordChanged(passwordChanged)
         .build();
   }
 }

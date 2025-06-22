@@ -114,4 +114,10 @@ public interface PartnerRepository extends JpaRepository<Partner, Long> {
         */
        @Query("SELECT COUNT(p) FROM Partner p WHERE p.headquarters.headquartersId = :headquartersId AND p.level = :level")
        long countByHeadquartersAndLevel(@Param("headquartersId") Long headquartersId, @Param("level") Integer level);
+
+       /**
+        * 본사 계정번호 + 계층적 아이디 + 이메일로 협력사 조회 (프론트엔드 호환 로그인용)
+        */
+       Optional<Partner> findByHqAccountNumberAndHierarchicalIdAndEmail(
+                     String hqAccountNumber, String hierarchicalId, String email);
 }
