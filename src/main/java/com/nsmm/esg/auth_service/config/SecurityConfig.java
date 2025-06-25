@@ -49,9 +49,6 @@ public class SecurityConfig {
                                 // CSRF 비활성화 (JWT 사용으로 불필요)
                                 .csrf(AbstractHttpConfigurer::disable)
 
-                                // CORS 설정
-                                // .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
                                 // 세션 비활성화 (JWT 사용)
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -145,34 +142,4 @@ public class SecurityConfig {
                 return new JwtAuthenticationFilter(jwtUtil);
         }
 
-        // /**
-        // * CORS 설정
-        // */
-        // @Bean
-        // public CorsConfigurationSource corsConfigurationSource() {
-        // CorsConfiguration configuration = new CorsConfiguration();
-        //
-        // // 허용할 Origin 설정 (개발 환경)
-        // configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        //
-        // // 허용할 HTTP 메서드
-        // configuration.setAllowedMethods(Arrays.asList(
-        // "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        //
-        // // 허용할 헤더
-        // configuration.setAllowedHeaders(Arrays.asList("*"));
-        //
-        // // 인증 정보 포함 허용 (쿠키 전송용)
-        // configuration.setAllowCredentials(true);
-        //
-        // // 노출할 헤더
-        // configuration.setExposedHeaders(Arrays.asList(
-        // "Authorization"));
-        //
-        // UrlBasedCorsConfigurationSource source = new
-        // UrlBasedCorsConfigurationSource();
-        // source.registerCorsConfiguration("/**", configuration);
-        //
-        // return source;
-        // }
 }
