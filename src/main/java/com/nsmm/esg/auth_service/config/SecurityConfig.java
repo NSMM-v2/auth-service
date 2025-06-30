@@ -18,9 +18,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * Spring Security 설정
  * JWT 기반 인증/인가 시스템
  * 
- * 실제 컨트롤러 엔드포인트 기준:
- * - HeadquartersController: /api/v1/headquarters/**
- * - PartnerController: /api/v1/partners/**
+ * Gateway 라우팅에 맞춘 /auth prefix 적용:
+ * - HeadquartersController: /api/v1/auth/headquarters/**
+ * - PartnerController: /api/v1/auth/partners/**
  */
 @Configuration
 @EnableWebSecurity
@@ -58,20 +58,20 @@ public class SecurityConfig {
                                                 // === 공개 엔드포인트 (인증 불필요) ===
                                                 .requestMatchers(
                                                                 // 본사 회원가입/로그인/로그아웃
-                                                                "/api/v1/headquarters/register",
-                                                                "/api/v1/headquarters/login",
-                                                                "/api/v1/headquarters/logout",
-                                                                "/api/v1/headquarters/check-email",
-                                                                "/api/v1/headquarters/check-uuid",
-                                                                "/api/v1/headquarters/by-uuid/*",
-                                                                "/api/v1/headquarters/next-account-number",
-                                                                "/api/v1/headquarters/validate-account-number",
+                                                                "/api/v1/auth/headquarters/register",
+                                                                "/api/v1/auth/headquarters/login",
+                                                                "/api/v1/auth/headquarters/logout",
+                                                                "/api/v1/auth/headquarters/check-email",
+                                                                "/api/v1/auth/headquarters/check-uuid",
+                                                                "/api/v1/auth/headquarters/by-uuid/*",
+                                                                "/api/v1/auth/headquarters/next-account-number",
+                                                                "/api/v1/auth/headquarters/validate-account-number",
 
                                                                 // 협력사 로그인/로그아웃 및 공개 API
-                                                                "/api/v1/partners/login",
-                                                                "/api/v1/partners/logout",
-                                                                "/api/v1/partners/check-email",
-                                                                "/api/v1/partners/check-uuid",
+                                                                "/api/v1/auth/partners/login",
+                                                                "/api/v1/auth/partners/logout",
+                                                                "/api/v1/auth/partners/check-email",
+                                                                "/api/v1/auth/partners/check-uuid",
 
                                                                 // 시스템 관련
                                                                 "/actuator/**",
@@ -87,37 +87,37 @@ public class SecurityConfig {
                                                 // === 본사 전용 엔드포인트 ===
                                                 .requestMatchers(
                                                                 // 1차 협력사 생성 및 관리 (본사만 가능)
-                                                                "/api/v1/partners/first-level",
-                                                                "/api/v1/partners/unchanged-password")
+                                                                "/api/v1/auth/partners/first-level",
+                                                                "/api/v1/auth/partners/unchanged-password")
                                                 .hasRole("HEADQUARTERS")
 
                                                 // === 협력사 전용 엔드포인트 ===
                                                 .requestMatchers(
                                                                 // 하위 협력사 생성 (협력사만 가능)
-                                                                "/api/v1/partners/{parentId}/sub-partners")
+                                                                "/api/v1/auth/partners/{parentId}/sub-partners")
                                                 .hasRole("PARTNER")
 
                                                 // === 인증된 사용자 공통 엔드포인트 (@PreAuthorize로 세부 권한 제어) ===
                                                 .requestMatchers(
                                                                 // 현재 사용자 정보 조회
-                                                                "/api/v1/headquarters/me",
-                                                                "/api/v1/partners/me",
+                                                                "/api/v1/auth/headquarters/me",
+                                                                "/api/v1/auth/partners/me",
 
                                                                 // UUID 기반 협력사 생성
-                                                                "/api/v1/partners/create-by-uuid",
+                                                                "/api/v1/auth/partners/create-by-uuid",
 
                                                                 // 협력사 정보 조회
-                                                                "/api/v1/partners/{partnerId}",
-                                                                "/api/v1/partners/by-uuid/{uuid}",
+                                                                "/api/v1/auth/partners/{partnerId}",
+                                                                "/api/v1/auth/partners/by-uuid/{uuid}",
 
                                                                 // 접근 가능한 협력사 목록
-                                                                "/api/v1/partners/accessible",
+                                                                "/api/v1/auth/partners/accessible",
 
                                                                 // 하위 협력사 목록 조회
-                                                                "/api/v1/partners/{parentId}/children",
+                                                                "/api/v1/auth/partners/{parentId}/children",
 
                                                                 // 초기 비밀번호 변경
-                                                                "/api/v1/partners/{partnerId}/initial-password")
+                                                                "/api/v1/auth/partners/{partnerId}/initial-password")
                                                 .hasAnyRole("HEADQUARTERS", "PARTNER")
 
                                                 // 나머지 모든 요청은 인증 필요
