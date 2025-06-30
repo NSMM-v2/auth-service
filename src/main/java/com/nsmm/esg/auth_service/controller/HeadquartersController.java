@@ -37,7 +37,7 @@ import org.springframework.web.bind.annotation.*;
  * - 본사 정보 관리
  */
 @RestController
-@RequestMapping("/api/v1/headquarters")
+@RequestMapping("/api/v1/auth/headquarters")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "본사 관리", description = "본사 회원가입, 로그인, 정보 관리 API")

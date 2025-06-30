@@ -42,7 +42,7 @@ import java.util.List;
  * - 초기 비밀번호 변경
  */
 @RestController
-@RequestMapping("/api/v1/partners")
+@RequestMapping("/api/v1/auth/partners")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "협력사 관리", description = "계층형 협력사 생성, 로그인, 관리 API")
