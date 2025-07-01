@@ -104,6 +104,7 @@ public class PartnerController {
                                                         .contactPerson(request.getContactPerson())
                                                         .companyName(request.getCompanyName())
                                                         .address(request.getAddress())
+                                                        .phone(request.getPhone()) // 전화번호 필드 추가
                                                         .parentUuid(headquarters.getUuid())
                                                         .build();
 
