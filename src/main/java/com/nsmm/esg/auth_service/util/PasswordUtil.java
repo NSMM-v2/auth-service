@@ -1,7 +1,6 @@
 package com.nsmm.esg.auth_service.util;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -20,7 +19,6 @@ import java.security.SecureRandom;
 @Slf4j
 @Component
 public class PasswordUtil {
-
 
     private final PasswordEncoder passwordEncoder;
     private final SecureRandom secureRandom;

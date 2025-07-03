@@ -5,7 +5,6 @@ import com.nsmm.esg.auth_service.dto.JwtClaims;
 import com.nsmm.esg.auth_service.dto.TokenResponse;
 import com.nsmm.esg.auth_service.dto.partner.PartnerCreateRequest;
 import com.nsmm.esg.auth_service.dto.partner.PartnerCreateResponse;
-import com.nsmm.esg.auth_service.dto.partner.PartnerInitialPasswordChangeByAccountRequest;
 import com.nsmm.esg.auth_service.dto.partner.PartnerLoginRequest;
 import com.nsmm.esg.auth_service.dto.partner.PartnerResponse;
 import com.nsmm.esg.auth_service.entity.Headquarters;
@@ -13,7 +12,6 @@ import com.nsmm.esg.auth_service.entity.Partner;
 import com.nsmm.esg.auth_service.service.HeadquartersService;
 import com.nsmm.esg.auth_service.service.PartnerService;
 import com.nsmm.esg.auth_service.util.JwtUtil;
-import com.nsmm.esg.auth_service.util.PasswordUtil;
 import com.nsmm.esg.auth_service.util.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -28,7 +26,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -54,7 +51,6 @@ public class PartnerController {
         private final HeadquartersService headquartersService;
         private final JwtUtil jwtUtil;
         private final SecurityUtil securityUtil;
-        private final PasswordUtil passwordUtil;
 
         // JWT 쿠키 설정값 주입
         @Value("${jwt.cookie.secure:false}")
@@ -369,7 +365,6 @@ public class PartnerController {
                                         .body(ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
                 }
         }
-
 
         /**
          * 비밀번호 미변경 협력사 목록 조회
