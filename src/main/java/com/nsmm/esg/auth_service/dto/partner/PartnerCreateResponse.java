@@ -34,9 +34,6 @@ public class PartnerCreateResponse {
   @Schema(description = "회사명", example = "케이씨에스정보통신")
   private String companyName;
 
-  @Schema(description = "담당자명", example = "김협력")
-  private String contactPerson;
-
   @Schema(description = "초기 비밀번호 (계층적 아이디와 동일)", example = "L1-001")
   private String initialPassword;
 
@@ -62,7 +59,6 @@ public class PartnerCreateResponse {
         .hierarchicalId(partner.getHierarchicalId())
         .fullAccountNumber(partner.getFullAccountNumber())
         .companyName(partner.getCompanyName())
-        .contactPerson(partner.getContactPerson())
         .initialPassword(partner.getHierarchicalId()) // 초기 비밀번호는 계층적 아이디와 동일
         .level(partner.getLevel())
         .treePath(partner.getTreePath())

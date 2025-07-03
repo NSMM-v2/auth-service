@@ -5,6 +5,7 @@ import com.nsmm.esg.auth_service.dto.JwtClaims;
 import com.nsmm.esg.auth_service.dto.TokenResponse;
 import com.nsmm.esg.auth_service.dto.partner.PartnerCreateRequest;
 import com.nsmm.esg.auth_service.dto.partner.PartnerCreateResponse;
+import com.nsmm.esg.auth_service.dto.partner.PartnerInitialPasswordChangeByAccountRequest;
 import com.nsmm.esg.auth_service.dto.partner.PartnerLoginRequest;
 import com.nsmm.esg.auth_service.dto.partner.PartnerResponse;
 import com.nsmm.esg.auth_service.dto.partner.PartnerInitialPasswordChangeRequest;
@@ -13,6 +14,7 @@ import com.nsmm.esg.auth_service.entity.Partner;
 import com.nsmm.esg.auth_service.service.HeadquartersService;
 import com.nsmm.esg.auth_service.service.PartnerService;
 import com.nsmm.esg.auth_service.util.JwtUtil;
+import com.nsmm.esg.auth_service.util.PasswordUtil;
 import com.nsmm.esg.auth_service.util.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -27,6 +29,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -52,6 +55,7 @@ public class PartnerController {
         private final HeadquartersService headquartersService;
         private final JwtUtil jwtUtil;
         private final SecurityUtil securityUtil;
+        private final PasswordUtil passwordUtil;
 
         // JWT 쿠키 설정값 주입
         @Value("${jwt.cookie.secure:false}")
@@ -103,8 +107,6 @@ public class PartnerController {
                                                         .uuid(request.getUuid())
                                                         .contactPerson(request.getContactPerson())
                                                         .companyName(request.getCompanyName())
-                                                        .address(request.getAddress())
-                                                        .phone(request.getPhone()) // 전화번호 필드 추가
                                                         .parentUuid(headquarters.getUuid())
                                                         .build();
 
@@ -369,31 +371,35 @@ public class PartnerController {
                 }
         }
 
-        /**
-         * 초기 비밀번호 변경
-         */
-        @PatchMapping("/{partnerId}/initial-password")
-        @Operation(summary = "초기 비밀번호 변경", description = "협력사 첫 로그인 후 초기 비밀번호를 변경합니다")
-        @PreAuthorize("hasRole('PARTNER') and @securityUtil.getCurrentEntityId() == #partnerId")
-        @SecurityRequirement(name = "JWT")
-        public ResponseEntity<ApiResponse<String>> changeInitialPassword(
-                        @PathVariable Long partnerId,
-                        @Valid @RequestBody PartnerInitialPasswordChangeRequest request) {
+        // ... existing code ...
 
-                log.info("초기 비밀번호 변경 요청: 협력사ID={}", partnerId);
+        /**
+         * 초기 비밀번호 변경 (새로운 엔드포인트)
+         */
+        @PatchMapping("/initial-password")
+        @Operation(summary = "초기 비밀번호 변경", description = "협력사 첫 로그인 후 초기 비밀번호를 변경합니다")
+        public ResponseEntity<ApiResponse<String>> changeInitialPasswordByAccountNumber(
+                        @Valid @RequestBody PartnerInitialPasswordChangeByAccountRequest request) {
+
+                log.info("초기 비밀번호 변경 요청: 계정번호={}", request.getAccountNumber());
 
                 try {
-                        // 협력사 조회
-                        Partner partner = partnerService.findById(partnerId)
+                        // 계정번호로 협력사 조회
+                        Partner partner = partnerService.findByFullAccountNumber(request.getAccountNumber())
                                         .orElseThrow(() -> new IllegalArgumentException(
-                                                        "존재하지 않는 협력사입니다: " + partnerId));
+                                                        "존재하지 않는 협력사입니다: " + request.getAccountNumber()));
 
-                        // 초기 비밀번호 변경 (현재 비밀번호 검증은 생략, DTO에 currentPassword 필드 없음)
+                        // 임시 비밀번호 검증
+                        if (!passwordUtil.matches(request.getTemporaryPassword(), partner.getPassword())) {
+                                throw new BadCredentialsException("임시 비밀번호가 일치하지 않습니다.");
+                        }
+
+                        // 초기 비밀번호 변경
                         partnerService.changeInitialPassword(partner.getPartnerId(), request.getNewPassword());
 
                         return ResponseEntity.ok(ApiResponse.success("비밀번호 변경 완료",
                                         "초기 비밀번호가 성공적으로 변경되었습니다."));
-                } catch (IllegalArgumentException e) {
+                } catch (IllegalArgumentException | BadCredentialsException e) {
                         log.warn("초기 비밀번호 변경 실패: {}", e.getMessage());
                         return ResponseEntity.badRequest()
                                         .body(ApiResponse.error(e.getMessage(), "PASSWORD_CHANGE_FAILED"));
@@ -403,6 +409,8 @@ public class PartnerController {
                                         .body(ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
                 }
         }
+
+        // ... existing code ...
 
         /**
          * 비밀번호 미변경 협력사 목록 (본사 전용)
@@ -484,19 +492,6 @@ public class PartnerController {
                         return ResponseEntity.status(500)
                                         .body(ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
                 }
-        }
-
-        /**
-         * 이메일 중복 확인
-         */
-        @GetMapping("/check-email")
-        @Operation(summary = "이메일 중복 확인", description = "협력사 생성 시 이메일 중복 여부 확인")
-        public ResponseEntity<ApiResponse<Boolean>> checkEmail(@RequestParam String email) {
-
-                boolean isDuplicate = partnerService.isEmailDuplicate(email);
-                String message = isDuplicate ? "이미 사용 중인 이메일입니다." : "사용 가능한 이메일입니다.";
-
-                return ResponseEntity.ok(ApiResponse.success(!isDuplicate, message));
         }
 
         /**

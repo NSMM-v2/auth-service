@@ -140,13 +140,6 @@ public class HeadquartersAccountService {
     }
   }
 
-  /**
-   * 오늘 생성 가능한 남은 계정번호 수
-   */
-  public int getTodayRemainingCount() {
-    String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
-    long todayCount = getTodayHeadquartersCount(today);
-    return (int) Math.max(0, DAILY_CAPACITY - todayCount);
-  }
+
 
 }

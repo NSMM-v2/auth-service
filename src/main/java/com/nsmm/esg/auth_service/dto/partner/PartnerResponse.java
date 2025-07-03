@@ -43,18 +43,6 @@ public class PartnerResponse {
   @Schema(description = "사용자 타입", example = "PARTNER")
   private String userType;
 
-  @Schema(description = "이메일")
-  private String email;
-
-  @Schema(description = "담당자명")
-  private String contactPerson;
-
-  @Schema(description = "연락처")
-  private String phone;
-
-  @Schema(description = "주소")
-  private String address;
-
   @Schema(description = "협력사 레벨")
   private Integer level;
 
@@ -102,10 +90,6 @@ public class PartnerResponse {
         .accountNumber(partner.getFullAccountNumber()) // 프론트엔드 호환용
         .companyName(partner.getCompanyName())
         .userType("PARTNER") // 협력사 타입 고정
-        .email(partner.getEmail())
-        .contactPerson(partner.getContactPerson())
-        .phone(partner.getPhone())
-        .address(partner.getAddress())
         .level(partner.getLevel())
         .treePath(partner.getTreePath())
         .status(partner.getStatus().name())
@@ -132,7 +116,6 @@ public class PartnerResponse {
         .accountNumber(partner.getFullAccountNumber()) // 프론트엔드 호환용
         .companyName(partner.getCompanyName())
         .userType("PARTNER") // 협력사 타입 고정
-        .contactPerson(partner.getContactPerson())
         .level(partner.getLevel())
         .status(partner.getStatus().name())
         .passwordChanged(partner.getPasswordChanged())

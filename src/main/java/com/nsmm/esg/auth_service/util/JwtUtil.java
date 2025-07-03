@@ -59,54 +59,6 @@ public class JwtUtil {
                 .compact();
     }
 
-    /**
-     * 토큰에서 계정 번호 추출
-     */
-    public String getAccountNumberFromToken(String token) {
-        return getClaimsFromToken(token).getSubject();
-    }
-
-    /**
-     * 토큰에서 사용자 타입 추출
-     */
-    public String getUserTypeFromToken(String token) {
-        return getClaimsFromToken(token).get("userType", String.class);
-    }
-
-    /**
-     * 토큰에서 회사명 추출
-     */
-    public String getCompanyNameFromToken(String token) {
-        return getClaimsFromToken(token).get("companyName", String.class);
-    }
-
-    /**
-     * 토큰에서 레벨 추출 (협력사인 경우)
-     */
-    public Integer getLevelFromToken(String token) {
-        return getClaimsFromToken(token).get("level", Integer.class);
-    }
-
-    /**
-     * 토큰에서 트리 경로 추출 (협력사인 경우)
-     */
-    public String getTreePathFromToken(String token) {
-        return getClaimsFromToken(token).get("treePath", String.class);
-    }
-
-    /**
-     * 토큰에서 본사 ID 추출
-     */
-    public Long getHeadquartersIdFromToken(String token) {
-        return getClaimsFromToken(token).get("headquartersId", Long.class);
-    }
-
-    /**
-     * 토큰에서 협력사 ID 추출 (협력사인 경우)
-     */
-    public Long getPartnerIdFromToken(String token) {
-        return getClaimsFromToken(token).get("partnerId", Long.class);
-    }
 
     /**
      * 토큰에서 만료 시간 추출
@@ -134,17 +86,6 @@ public class JwtUtil {
         return false;
     }
 
-    /**
-     * 토큰 만료 확인
-     */
-    public boolean isTokenExpired(String token) {
-        try {
-            Date expiration = getExpirationDateFromToken(token);
-            return expiration.before(new Date());
-        } catch (Exception e) {
-            return true;
-        }
-    }
 
     /**
      * 토큰에서 모든 클레임 정보 추출
@@ -193,18 +134,9 @@ public class JwtUtil {
         return claimsMap;
     }
 
-    /**
-     * Access Token 만료 시간 반환 (밀리초)
-     */
     public long getAccessTokenExpiration() {
         return accessTokenExpiration;
     }
 
-    /**
-     * Refresh Token 만료 시간 반환 (밀리초)
-     */
-    public long getRefreshTokenExpiration() {
-        return refreshTokenExpiration;
-    }
 
 }

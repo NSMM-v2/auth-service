@@ -134,11 +134,7 @@ public class PartnerService {
                                 .hqAccountNumber(headquarters.getHqAccountNumber())
                                 .hierarchicalId(hierarchicalId)
                                 .companyName(request.getCompanyName())
-                                .email(null) // 초기에는 null
                                 .password(initialPassword)
-                                .contactPerson(request.getContactPerson())
-                                .phone(request.getPhone())
-                                .address(request.getAddress())
                                 .level(1)
                                 .treePath(treePath)
                                 .status(Partner.PartnerStatus.ACTIVE)
@@ -174,11 +170,7 @@ public class PartnerService {
                                 .hqAccountNumber(parentPartner.getHqAccountNumber())
                                 .hierarchicalId(hierarchicalId)
                                 .companyName(request.getCompanyName())
-                                .email(null) // 초기에는 null
                                 .password(initialPassword)
-                                .contactPerson(request.getContactPerson())
-                                .phone(request.getPhone())
-                                .address(request.getAddress())
                                 .level(parentPartner.getLevel() + 1)
                                 .treePath(treePath)
                                 .status(Partner.PartnerStatus.ACTIVE)
@@ -250,13 +242,6 @@ public class PartnerService {
         }
 
         /**
-         * 협력사 정보 조회 (이메일)
-         */
-        public Optional<Partner> findByEmail(String email) {
-                return partnerRepository.findByEmail(email);
-        }
-
-        /**
          * 협력사 로그인 (본사계정번호 + 협력사아이디 + 비밀번호)
          * 프론트엔드 요구사항에 맞는 새로운 로그인 방식
          */
@@ -319,45 +304,19 @@ public class PartnerService {
         }
 
         /**
-         * 협력사 정보 수정
+         * 전체 계정번호로 협력사 조회
          */
-        @Transactional
-        public Partner updatePartner(Long partnerId, String companyName, String contactPerson, String phone,
-                        String address) {
-                log.info("협력사 정보 수정 요청: ID={}", partnerId);
-
-                Partner partner = partnerRepository.findById(partnerId)
-                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 협력사입니다: " + partnerId));
-
-                // 정보 업데이트 (불변성 보장)
-                Partner updatedPartner = partner.updateInfo(companyName, contactPerson, phone, address);
-                Partner savedPartner = partnerRepository.save(updatedPartner);
-
-                log.info("협력사 정보 수정 완료: ID={}", savedPartner.getPartnerId());
-                return savedPartner;
-        }
-
-        /**
-         * 이메일 설정
-         */
-        @Transactional
-        public Partner setEmail(Long partnerId, String email) {
-                log.info("협력사 이메일 설정 요청: ID={}, 이메일={}", partnerId, email);
-
-                // 이메일 중복 확인
-                if (partnerRepository.existsByEmail(email)) {
-                        throw new IllegalArgumentException("이미 사용중인 이메일입니다: " + email);
+        public Optional<Partner> findByFullAccountNumber(String fullAccountNumber) {
+                // 계정번호 파싱 (HQ001-L1-001 -> HQ001, L1-001)
+                String[] parts = fullAccountNumber.split("-", 2);
+                if (parts.length != 2) {
+                        throw new IllegalArgumentException("올바르지 않은 계정번호 형식입니다: " + fullAccountNumber);
                 }
 
-                Partner partner = partnerRepository.findById(partnerId)
-                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 협력사입니다: " + partnerId));
+                String hqAccountNumber = parts[0];
+                String hierarchicalId = parts[1];
 
-                // 이메일 설정 (불변성 보장)
-                Partner updatedPartner = partner.setEmail(email);
-                Partner savedPartner = partnerRepository.save(updatedPartner);
-
-                log.info("협력사 이메일 설정 완료: ID={}", savedPartner.getPartnerId());
-                return savedPartner;
+                return partnerRepository.findByHqAccountNumberAndHierarchicalId(hqAccountNumber, hierarchicalId);
         }
 
         /**
@@ -374,17 +333,4 @@ public class PartnerService {
                 return partnerRepository.existsByUuid(uuid);
         }
 
-        /**
-         * 이메일 중복 확인
-         */
-        public boolean isEmailDuplicate(String email) {
-                return partnerRepository.existsByEmail(email);
-        }
-
-        /**
-         * 본사 계정번호 유효성 검증
-         */
-        public boolean isValidHqAccountNumber(String hqAccountNumber) {
-                return headquartersRepository.existsByHqAccountNumber(hqAccountNumber);
-        }
 }

@@ -72,6 +72,7 @@ public class SecurityConfig {
                                                                 "/api/v1/auth/partners/logout",
                                                                 "/api/v1/auth/partners/check-email",
                                                                 "/api/v1/auth/partners/check-uuid",
+                                                                "/api/v1/auth/partners/initial-password",
 
                                                                 // 시스템 관련
                                                                 "/actuator/**",
@@ -114,10 +115,7 @@ public class SecurityConfig {
                                                                 "/api/v1/auth/partners/accessible",
 
                                                                 // 하위 협력사 목록 조회
-                                                                "/api/v1/auth/partners/{parentId}/children",
-
-                                                                // 초기 비밀번호 변경
-                                                                "/api/v1/auth/partners/{partnerId}/initial-password")
+                                                                "/api/v1/auth/partners/{parentId}/children")
                                                 .hasAnyRole("HEADQUARTERS", "PARTNER")
 
                                                 // 나머지 모든 요청은 인증 필요

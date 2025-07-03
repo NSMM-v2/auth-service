@@ -21,8 +21,6 @@ import java.util.Optional;
 @Repository
 public interface HeadquartersRepository extends JpaRepository<Headquarters, Long> {
 
-    // === UUID 기반 조회 (외부 API용) ===
-
     /**
      * UUID로 본사 조회
      */
@@ -41,21 +39,6 @@ public interface HeadquartersRepository extends JpaRepository<Headquarters, Long
     Optional<Headquarters> findByEmail(String email);
 
     /**
-     * 계정 번호로 본사 조회 (JWT 검증용)
-     */
-    Optional<Headquarters> findByHqAccountNumber(String hqAccountNumber);
-
-    /**
-     * 이메일과 상태로 본사 조회
-     */
-    Optional<Headquarters> findByEmailAndStatus(String email, Headquarters.CompanyStatus status);
-
-    /**
-     * 계정 번호와 상태로 본사 조회
-     */
-    Optional<Headquarters> findByHqAccountNumberAndStatus(String hqAccountNumber, Headquarters.CompanyStatus status);
-
-    /**
      * 이메일 중복 확인
      */
     boolean existsByEmail(String email);
@@ -71,12 +54,6 @@ public interface HeadquartersRepository extends JpaRepository<Headquarters, Long
      */
     @Query("SELECT COUNT(h) FROM Headquarters h WHERE h.hqAccountNumber LIKE CONCAT(:pattern, '%')")
     long countByHqAccountNumberStartingWith(@Param("pattern") String pattern);
-
-    /**
-     * 활성 상태인 본사만 조회
-     */
-    @Query("SELECT h FROM Headquarters h WHERE h.status = 'ACTIVE'")
-    java.util.List<Headquarters> findAllActive();
 
     /**
      * 본사 개수 조회 (순번 생성용)

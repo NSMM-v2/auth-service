@@ -72,20 +72,8 @@ public class Partner {
     @Column(name = "company_name", nullable = false)
     private String companyName; // 협력사명
 
-    @Column(name = "email", unique = true)
-    private String email; // 이메일 (선택적, 초기에는 null 가능)
-
     @Column(name = "password", nullable = false)
     private String password; // 암호화된 비밀번호
-
-    @Column(name = "contact_person", nullable = false, length = 100)
-    private String contactPerson; // 대표자명 (담당자명)
-
-    @Column(name = "phone", length = 20)
-    private String phone; // 연락처
-
-    @Column(name = "address", columnDefinition = "TEXT")
-    private String address; // 주소
 
     @Column(name = "level", nullable = false)
     private Integer level; // 협력사 계층 레벨 (1차=1, 2차=2, ...)
@@ -139,11 +127,7 @@ public class Partner {
                 .hqAccountNumber(this.hqAccountNumber)
                 .hierarchicalId(this.hierarchicalId)
                 .companyName(companyName != null ? companyName : this.companyName)
-                .email(this.email)
                 .password(this.password)
-                .contactPerson(contactPerson != null ? contactPerson : this.contactPerson)
-                .phone(phone != null ? phone : this.phone)
-                .address(address != null ? address : this.address)
                 .level(this.level)
                 .treePath(this.treePath)
                 .status(this.status)
@@ -167,11 +151,7 @@ public class Partner {
                 .hqAccountNumber(this.hqAccountNumber)
                 .hierarchicalId(this.hierarchicalId)
                 .companyName(this.companyName)
-                .email(email)
                 .password(this.password)
-                .contactPerson(this.contactPerson)
-                .phone(this.phone)
-                .address(this.address)
                 .level(this.level)
                 .treePath(this.treePath)
                 .status(this.status)
@@ -198,11 +178,7 @@ public class Partner {
                 .hqAccountNumber(this.hqAccountNumber)
                 .hierarchicalId(this.hierarchicalId)
                 .companyName(this.companyName)
-                .email(this.email)
                 .password(newPassword)
-                .contactPerson(this.contactPerson)
-                .phone(this.phone)
-                .address(this.address)
                 .level(this.level)
                 .treePath(this.treePath)
                 .status(this.status)
@@ -229,11 +205,7 @@ public class Partner {
                 .hqAccountNumber(this.hqAccountNumber)
                 .hierarchicalId(this.hierarchicalId)
                 .companyName(this.companyName)
-                .email(this.email)
                 .password(this.password)
-                .contactPerson(this.contactPerson)
-                .phone(this.phone)
-                .address(this.address)
                 .level(this.level)
                 .treePath(this.treePath)
                 .status(newStatus)

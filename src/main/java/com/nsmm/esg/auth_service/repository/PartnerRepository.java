@@ -21,8 +21,6 @@ import java.util.Optional;
 @Repository
 public interface PartnerRepository extends JpaRepository<Partner, Long> {
 
-       // === UUID 기반 조회 (프론트엔드 요구사항) ===
-
        /**
         * UUID로 협력사 조회
         */
@@ -33,19 +31,11 @@ public interface PartnerRepository extends JpaRepository<Partner, Long> {
         */
        boolean existsByUuid(String uuid);
 
-       // === 로그인 관련 메서드 ===
 
        /**
         * 본사 계정번호 + 계층적 아이디로 협력사 조회 (로그인용)
         */
        Optional<Partner> findByHqAccountNumberAndHierarchicalId(String hqAccountNumber, String hierarchicalId);
-
-       /**
-        * 이메일로 협력사 조회 (고유 식별용)
-        */
-       Optional<Partner> findByEmail(String email);
-
-       // === 계층 구조 관리 메서드 ===
 
        /**
         * 본사별 1차 협력사 조회 (parentPartner가 null인 협력사)
@@ -71,27 +61,6 @@ public interface PartnerRepository extends JpaRepository<Partner, Long> {
                      @Param("directChildLevel") Integer directChildLevel,
                      @Param("expectedSlashCount") Integer expectedSlashCount);
 
-       // === 중복 검사 메서드 ===
-
-       /**
-        * 이메일 중복 확인
-        */
-       boolean existsByEmail(String email);
-
-       /**
-        * 본사 내 계층적 아이디 중복 확인
-        */
-       boolean existsByHqAccountNumberAndHierarchicalId(String hqAccountNumber, String hierarchicalId);
-
-       // === 통계 조회 메서드 ===
-
-       /**
-        * 본사별 레벨별 협력사 수 조회
-        */
-       @Query("SELECT COUNT(p) FROM Partner p WHERE p.headquarters.headquartersId = :headquartersId AND p.level = :level")
-       long countByHeadquartersIdAndLevel(@Param("headquartersId") Long headquartersId, @Param("level") Integer level);
-
-       // === 상태별 조회 메서드 ===
 
        /**
         * 비밀번호 미변경 협력사 조회
@@ -99,7 +68,6 @@ public interface PartnerRepository extends JpaRepository<Partner, Long> {
        @Query("SELECT p FROM Partner p WHERE p.headquarters.headquartersId = :headquartersId AND p.passwordChanged = false ORDER BY p.createdAt ASC")
        List<Partner> findUnchangedPasswordPartners(@Param("headquartersId") Long headquartersId);
 
-       // === 권한별 조회 메서드 (본사용) ===
 
        /**
         * 본사가 모든 협력사 조회
@@ -107,7 +75,6 @@ public interface PartnerRepository extends JpaRepository<Partner, Long> {
        @Query("SELECT p FROM Partner p WHERE p.headquarters.headquartersId = :headquartersId ORDER BY p.level ASC, p.createdAt ASC")
        List<Partner> findAllPartnersByHeadquarters(@Param("headquartersId") Long headquartersId);
 
-       // === 계층적 ID 생성 지원 메서드 ===
 
        /**
         * 특정 본사 + 레벨에서 다음 순번 계산용
@@ -115,9 +82,4 @@ public interface PartnerRepository extends JpaRepository<Partner, Long> {
        @Query("SELECT COUNT(p) FROM Partner p WHERE p.headquarters.headquartersId = :headquartersId AND p.level = :level")
        long countByHeadquartersAndLevel(@Param("headquartersId") Long headquartersId, @Param("level") Integer level);
 
-       /**
-        * 본사 계정번호 + 계층적 아이디 + 이메일로 협력사 조회 (프론트엔드 호환 로그인용)
-        */
-       Optional<Partner> findByHqAccountNumberAndHierarchicalIdAndEmail(
-                     String hqAccountNumber, String hierarchicalId, String email);
 }
