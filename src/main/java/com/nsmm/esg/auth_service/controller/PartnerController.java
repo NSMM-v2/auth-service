@@ -370,49 +370,9 @@ public class PartnerController {
                 }
         }
 
-        // ... existing code ...
 
         /**
-         * 초기 비밀번호 변경 (새로운 엔드포인트)
-         */
-        @PatchMapping("/initial-password")
-        @Operation(summary = "초기 비밀번호 변경", description = "협력사 첫 로그인 후 초기 비밀번호를 변경합니다")
-        public ResponseEntity<ApiResponse<String>> changeInitialPasswordByAccountNumber(
-                        @Valid @RequestBody PartnerInitialPasswordChangeByAccountRequest request) {
-
-                log.info("초기 비밀번호 변경 요청: 계정번호={}", request.getAccountNumber());
-
-                try {
-                        // 계정번호로 협력사 조회
-                        Partner partner = partnerService.findByFullAccountNumber(request.getAccountNumber())
-                                        .orElseThrow(() -> new IllegalArgumentException(
-                                                        "존재하지 않는 협력사입니다: " + request.getAccountNumber()));
-
-                        // 임시 비밀번호 검증
-                        if (!passwordUtil.matches(request.getTemporaryPassword(), partner.getPassword())) {
-                                throw new BadCredentialsException("임시 비밀번호가 일치하지 않습니다.");
-                        }
-
-                        // 초기 비밀번호 변경
-                        partnerService.changeInitialPassword(partner.getPartnerId(), request.getNewPassword());
-
-                        return ResponseEntity.ok(ApiResponse.success("비밀번호 변경 완료",
-                                        "초기 비밀번호가 성공적으로 변경되었습니다."));
-                } catch (IllegalArgumentException | BadCredentialsException e) {
-                        log.warn("초기 비밀번호 변경 실패: {}", e.getMessage());
-                        return ResponseEntity.badRequest()
-                                        .body(ApiResponse.error(e.getMessage(), "PASSWORD_CHANGE_FAILED"));
-                } catch (Exception e) {
-                        log.error("초기 비밀번호 변경 중 오류 발생", e);
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                        .body(ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
-                }
-        }
-
-        // ... existing code ...
-
-        /**
-         * 비밀번호 미변경 협력사 목록 (본사 전용)
+         * 비밀번호 미변경 협력사 목록 조회
          */
         @GetMapping("/unchanged-password")
         @Operation(summary = "비밀번호 미변경 협력사 목록", description = "비밀번호를 아직 변경하지 않은 협력사 목록을 조회합니다")

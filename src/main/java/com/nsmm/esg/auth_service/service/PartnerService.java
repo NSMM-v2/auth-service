@@ -284,42 +284,6 @@ public class PartnerService {
         }
 
         /**
-         * 초기 비밀번호 변경
-         */
-        @Transactional
-        public void changeInitialPassword(Long partnerId, String newPassword) {
-                log.info("초기 비밀번호 변경 요청: 협력사ID={}", partnerId);
-
-                Partner partner = partnerRepository.findById(partnerId)
-                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 협력사입니다: " + partnerId));
-
-                // 새 비밀번호 암호화
-                String encodedPassword = passwordUtil.encodePassword(newPassword);
-
-                // 비밀번호 변경 (불변성 보장)
-                Partner updatedPartner = partner.changePassword(encodedPassword);
-                partnerRepository.save(updatedPartner);
-
-                log.info("초기 비밀번호 변경 완료: 협력사ID={}", partnerId);
-        }
-
-        /**
-         * 전체 계정번호로 협력사 조회
-         */
-        public Optional<Partner> findByFullAccountNumber(String fullAccountNumber) {
-                // 계정번호 파싱 (HQ001-L1-001 -> HQ001, L1-001)
-                String[] parts = fullAccountNumber.split("-", 2);
-                if (parts.length != 2) {
-                        throw new IllegalArgumentException("올바르지 않은 계정번호 형식입니다: " + fullAccountNumber);
-                }
-
-                String hqAccountNumber = parts[0];
-                String hierarchicalId = parts[1];
-
-                return partnerRepository.findByHqAccountNumberAndHierarchicalId(hqAccountNumber, hierarchicalId);
-        }
-
-        /**
          * 비밀번호 미변경 협력사 목록 조회
          */
         public List<Partner> findUnchangedPasswordPartners(Long headquartersId) {
