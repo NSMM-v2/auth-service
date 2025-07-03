@@ -1,7 +1,6 @@
 package com.nsmm.esg.auth_service.service;
 
 import com.nsmm.esg.auth_service.repository.PartnerRepository;
-import com.nsmm.esg.auth_service.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,9 +19,6 @@ import org.springframework.stereotype.Service;
 public class PartnerAccountService {
 
   private final PartnerRepository partnerRepository;
-  private final SecurityUtil securityUtil;
-
-
 
   /**
    * 계층적 아이디 생성 (통합 메서드)

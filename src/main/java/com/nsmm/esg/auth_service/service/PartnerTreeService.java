@@ -1,6 +1,5 @@
 package com.nsmm.esg.auth_service.service;
 
-import com.nsmm.esg.auth_service.entity.Partner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

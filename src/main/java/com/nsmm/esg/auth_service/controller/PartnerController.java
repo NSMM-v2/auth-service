@@ -8,7 +8,6 @@ import com.nsmm.esg.auth_service.dto.partner.PartnerCreateResponse;
 import com.nsmm.esg.auth_service.dto.partner.PartnerInitialPasswordChangeByAccountRequest;
 import com.nsmm.esg.auth_service.dto.partner.PartnerLoginRequest;
 import com.nsmm.esg.auth_service.dto.partner.PartnerResponse;
-import com.nsmm.esg.auth_service.dto.partner.PartnerInitialPasswordChangeRequest;
 import com.nsmm.esg.auth_service.entity.Headquarters;
 import com.nsmm.esg.auth_service.entity.Partner;
 import com.nsmm.esg.auth_service.service.HeadquartersService;
