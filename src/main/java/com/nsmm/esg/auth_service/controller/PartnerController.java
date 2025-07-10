@@ -270,10 +270,28 @@ public class PartnerController {
                         List<Partner> partners;
 
                         if ("HEADQUARTERS".equals(userType)) {
-                                // 본사: 모든 협력사 접근 가능
+                                // 본사: 본사 자신 + 모든 협력사 접근 가능
                                 Long headquartersId = securityUtil.getCurrentHeadquartersId();
+                                
+                                // 모든 협력사 조회
                                 partners = partnerService.findAccessiblePartners("HEADQUARTERS", headquartersId, null,
                                                 null);
+                                
+                                // 본사 정보를 PartnerResponse로 변환하여 추가
+                                Headquarters headquarters = headquartersService.findById(headquartersId)
+                                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 본사입니다: " + headquartersId));
+                                
+                                PartnerResponse headquartersAsPartner = headquartersService.convertToPartnerResponse(headquarters);
+                                
+                                // 응답 리스트 생성 (본사를 맨 앞에 배치)
+                                List<PartnerResponse> responses = new java.util.ArrayList<>();
+                                responses.add(headquartersAsPartner);
+                                responses.addAll(partners.stream()
+                                                .map(PartnerResponse::from)
+                                                .toList());
+
+                                return ResponseEntity.ok(ApiResponse.success(responses,
+                                                "접근 가능한 협력사 목록이 조회되었습니다. (총 " + responses.size() + "개)"));
                         } else {
                                 // 협력사: 본인 + 직속하위 1단계만 접근 가능
                                 Long currentPartnerId = securityUtil.getCurrentEntityId();

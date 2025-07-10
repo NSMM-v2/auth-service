@@ -2,6 +2,7 @@ package com.nsmm.esg.auth_service.service;
 
 import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersSignupRequest;
 import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersLoginRequest;
+import com.nsmm.esg.auth_service.dto.partner.PartnerResponse;
 import com.nsmm.esg.auth_service.entity.Headquarters;
 import com.nsmm.esg.auth_service.repository.HeadquartersRepository;
 import com.nsmm.esg.auth_service.util.PasswordUtil;
@@ -233,5 +234,36 @@ public class HeadquartersService {
                 headquarters.getHqAccountNumber(), headquarters.getCompanyName());
 
         return headquarters;
+    }
+
+    /**
+     * 본사 정보를 PartnerResponse 형태로 변환
+     * 본사가 협력사 목록에 포함될 수 있도록 변환
+     */
+    public PartnerResponse convertToPartnerResponse(Headquarters headquarters) {
+        log.info("본사를 PartnerResponse로 변환: ID={}, 회사명={}", 
+            headquarters.getHeadquartersId(), headquarters.getCompanyName());
+
+        return PartnerResponse.builder()
+            .partnerId(-1L) // 본사는 음수 ID로 구분
+            .uuid(headquarters.getUuid())
+            .hqAccountNumber(headquarters.getHqAccountNumber())
+            .hierarchicalId("HQ") // 본사는 "HQ"로 표시
+            .fullAccountNumber(headquarters.getHqAccountNumber())
+            .accountNumber(headquarters.getHqAccountNumber()) // 프론트엔드 호환용
+            .companyName(headquarters.getCompanyName())
+            .userType("HEADQUARTERS") // 본사 타입으로 구분
+            .level(0) // 본사는 레벨 0
+            .treePath("/" + headquarters.getHeadquartersId() + "/") // 루트 경로
+            .status("ACTIVE")
+            .passwordChanged(true) // 본사는 항상 비밀번호 변경 완료로 간주
+            .headquartersId(headquarters.getHeadquartersId())
+            .headquartersName(headquarters.getCompanyName())
+            .parentPartnerId(null) // 본사는 상위가 없음
+            .parentPartnerName(null)
+            .directChildLevel(1) // 본사의 직속 하위는 1차 협력사
+            .createdAt(headquarters.getCreatedAt())
+            .updatedAt(headquarters.getUpdatedAt())
+            .build();
     }
 }
