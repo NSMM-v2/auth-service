@@ -1,329 +1,320 @@
-# ESG Auth Service
+# Auth Service - ESG 프로젝트 인증/인가 서비스
 
-> JWT 기반 계층적 조직 인증 서비스
+## 서비스 개요
 
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.0-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![Spring Security](https://img.shields.io/badge/Spring%20Security-6.x-blue.svg)](https://spring.io/projects/spring-security)
-[![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.java.net/projects/jdk/17/)
+ESG 프로젝트의 **인증 및 인가를 담당하는 마이크로서비스**입니다. 본사와 협력사 간의 **계층적 조직 구조**를 지원하며, **JWT 기반의 안전한 인증 시스템**을 제공합니다.
 
-## 프로젝트 개요
+### 주요 특징
 
-ESG 데이터 관리를 위한 본사-협력사 간 계층적 권한 관리 시스템입니다. DART API로부터 받은 회사 정보를 기반으로 협력사를 생성하고, 각 조직의 레벨에 따른 데이터 접근 권한을 제어합니다.
+- 이원화된 사용자 체계: 본사(Headquarters) + 협력사(Partner)
+- 계층적 조직 구조: 본사 → 1차협력사 → 2차협력사 → 3차협력사
+- JWT 기반 인증: HttpOnly 쿠키를 통한 안전한 토큰 관리
+- 세밀한 권한 제어: TreePath 기반 계층적 접근 권한
+- 보안 강화: BCrypt 암호화, XSS 방지, CSRF 보호
 
 ## 기술 스택
 
-- **Backend**: Spring Boot 3.5.0, Spring Security, Spring Data JPA
-- **Database**: MySQL 8.0
-- **Authentication**: JWT (Access + Refresh Token)
-- **Security**: BCrypt Password Encoding, HttpOnly Cookie
-- **Documentation**: OpenAPI 3.0 (Swagger)
-
-## 핵심 기능
-
-### 1. 조직 관리
-
-- 본사 회원가입 및 계정 관리
-- UUID 기반 협력사 생성 (DART API 연동)
-- 다단계 협력사 구조 지원 (1차, 2차, 3차...)
-
-### 2. 인증 시스템
-
-- JWT 기반 stateless 인증
-- Access Token (15분) + Refresh Token (7일)
-- HttpOnly Cookie를 통한 XSS 보안
-
-### 3. 권한 관리
-
-- 계층적 권한 제어 (TreePath 시스템)
-- 본사: 모든 협력사 데이터 접근
-- 협력사: 본인 + 직속 하위 조직만 접근
+| 분야 | 기술 |
+|------|------|
+| **Framework** | Spring Boot 3.5.0 |
+| **Security** | Spring Security 6.x, JWT |
+| **Database** | MySQL 8.0, JPA/Hibernate |
+| **Authentication** | JWT (Access/Refresh Token) |
+| **Password** | BCrypt (strength 12) |
+| **Documentation** | Swagger/OpenAPI 3.0 |
 
 ## 시스템 아키텍처
 
 ```mermaid
 graph TB
     subgraph "클라이언트"
-        WEB[웹 브라우저]
-        API[API 클라이언트]
+        FE[프론트엔드]
     end
-
-    subgraph "Auth Service (8081)"
-        CONTROLLER[REST Controller]
-        SERVICE[Business Logic]
-        SECURITY[Spring Security]
-        REPOSITORY[JPA Repository]
+    
+    subgraph "Gateway Layer"
+        GW[API Gateway]
     end
-
-    subgraph "외부 시스템"
-        DART[DART API<br/>회사 정보 제공]
+    
+    subgraph "Auth Service"
+        AC[Auth Controller]
+        AS[Auth Service]
+        JWT[JWT Utils]
     end
-
+    
     subgraph "데이터베이스"
-        HQ_TABLE[(Headquarters Table)]
-        PARTNER_TABLE[(Partner Table)]
+        HQ_DB[(본사 테이블)]
+        PT_DB[(협력사 테이블)]
     end
-
-    WEB --> CONTROLLER
-    API --> CONTROLLER
-
-    CONTROLLER --> SECURITY
-    SECURITY --> SERVICE
-    SERVICE --> REPOSITORY
-
-    REPOSITORY --> HQ_TABLE
-    REPOSITORY --> PARTNER_TABLE
-
-    DART -.-> WEB
-    DART -.-> API
+    
+    FE --> GW
+    GW --> AC
+    AC --> AS
+    AS --> JWT
+    AS --> HQ_DB
+    AS --> PT_DB
 ```
 
 ## 인증 플로우
+
+### 본사 로그인 시퀀스
 
 ```mermaid
 sequenceDiagram
     participant C as 클라이언트
     participant A as Auth Service
-    participant DB as Database
+    participant J as JWT Utils
+    participant D as Database
+    participant Cookie as HttpOnly Cookie
 
-    Note over C,DB: 로그인 과정
-    C->>A: POST /login {email, password}
-    A->>DB: 사용자 조회
-    DB-->>A: 사용자 정보
-    A->>A: 비밀번호 검증 (BCrypt)
-    A->>A: JWT 토큰 생성
-    A-->>C: Set-Cookie: jwt=token
-
-    Note over C,DB: API 호출
-    C->>A: GET /partners (Cookie 포함)
-    A->>A: JWT 토큰 검증
-    A->>A: 권한 확인 (TreePath)
-    A->>DB: 권한 범위 내 데이터 조회
-    DB-->>A: 조회 결과
-    A-->>C: JSON 응답
-
-    Note over C,DB: 토큰 갱신
-    C->>A: POST /refresh (Refresh Token)
-    A->>A: Refresh Token 검증
-    A->>A: 새 Access Token 생성
-    A-->>C: Set-Cookie: jwt=newToken
+    C->>A: POST /headquarters/login
+    Note over C,A: { email, password }
+    
+    A->>D: 이메일로 본사 조회
+    D-->>A: 본사 정보 반환
+    
+    A->>A: BCrypt 비밀번호 검증
+    
+    alt 인증 성공
+        A->>J: JWT 클레임 생성
+        Note over A,J: accountNumber, userType: "HEADQUARTERS"
+        
+        J-->>A: Access Token + Refresh Token
+        
+        A->>Cookie: HttpOnly 쿠키 설정
+        Note over A,Cookie: jwt=accessToken, Secure, HttpOnly
+        
+        A-->>C: 200 OK + 토큰 정보
+    else 인증 실패
+        A-->>C: 400 Bad Request
+        Note over A,C: "로그인 정보가 올바르지 않습니다"
+    end
 ```
 
-## 계층적 권한 시스템
+### 협력사 로그인 시퀀스
 
-### TreePath 구조
+```mermaid
+sequenceDiagram
+    participant C as 클라이언트
+    participant A as Auth Service
+    participant J as JWT Utils
+    participant D as Database
 
+    C->>A: POST /partners/login
+    Note over C,A: { hqAccountNumber, hierarchicalId, password }
+    
+    A->>D: 계정번호 + 계층ID로 협력사 조회
+    D-->>A: 협력사 정보 반환
+    
+    A->>A: BCrypt 비밀번호 검증
+    
+    alt 인증 성공
+        A->>J: JWT 클레임 생성
+        Note over A,J: userType: "PARTNER", level, treePath
+        
+        J-->>A: Access Token + Refresh Token
+        A-->>C: 200 OK + 토큰 정보
+    else 인증 실패
+        A-->>C: 400 Bad Request
+    end
 ```
-본사: /HQ001/
-├── 1차 협력사: /HQ001/L1-001/
-│   ├── 2차 협력사: /HQ001/L1-001/L2-001/
-│   └── 2차 협력사: /HQ001/L1-001/L2-002/
-└── 1차 협력사: /HQ001/L1-002/
-    └── 2차 협력사: /HQ001/L1-002/L2-001/
+
+## 계층적 조직 구조
+
+```mermaid
+graph TD
+    subgraph "조직 계층"
+        HQ[본사<br/>HEADQUARTERS<br/>hqAccountNumber: 2412161700]
+        
+        P1A[1차 협력사 A<br/>L1-001<br/>treePath: /1/L1-001/]
+        P1B[1차 협력사 B<br/>L1-002<br/>treePath: /1/L1-002/]
+        
+        P2A[2차 협력사 A<br/>L2-001<br/>treePath: /1/L1-001/L2-001/]
+        P2B[2차 협력사 B<br/>L2-002<br/>treePath: /1/L1-001/L2-002/]
+        
+        P3A[3차 협력사 A<br/>L3-001<br/>treePath: /1/L1-001/L2-001/L3-001/]
+    end
+    
+    HQ --> P1A
+    HQ --> P1B
+    P1A --> P2A
+    P1A --> P2B
+    P2A --> P3A
+    
+    style HQ fill:#e1f5fe
+    style P1A fill:#f3e5f5
+    style P1B fill:#f3e5f5
+    style P2A fill:#fff3e0
+    style P2B fill:#fff3e0
+    style P3A fill:#f1f8e9
 ```
 
-### 권한 제어 로직
+### 권한 체계
 
-```java
-@PreAuthorize("@securityUtil.canAccessPartnerData(#partnerId)")
-public List<PartnerResponse> getAccessiblePartners() {
-    String currentTreePath = securityUtil.getCurrentTreePath();
-    return partnerRepository.findAccessiblePartners(currentTreePath);
-}
+| 사용자 타입 | 접근 범위 | 설명 |
+|------------|-----------|------|
+| **본사** | 전체 계층 | 모든 협력사 데이터 접근 가능 |
+| **1차 협력사** | 본인 + 하위 | 본인 + 2차/3차 협력사 데이터 접근 |
+| **2차 협력사** | 본인 + 하위 | 본인 + 3차 협력사 데이터 접근 |
+| **3차 협력사** | 본인만 | 본인 데이터만 접근 가능 |
+
+## JWT 토큰 생명주기
+
+```mermaid
+stateDiagram-v2
+    [*] --> Login
+    Login --> TokenGenerated: 인증 성공
+    Login --> [*]: 인증 실패
+    
+    TokenGenerated --> Active: 쿠키 설정
+    Active --> Expired: 15분 경과
+    Active --> Logout: 사용자 로그아웃
+    Active --> Refresh: 토큰 갱신 요청
+    
+    Expired --> RefreshCheck: Refresh Token 검증
+    RefreshCheck --> TokenGenerated: 유효한 Refresh Token
+    RefreshCheck --> [*]: 만료된 Refresh Token
+    
+    Refresh --> TokenGenerated: 새 토큰 발급
+    Logout --> [*]: 쿠키 삭제
 ```
 
-## 주요 API
+## 보안 설계
 
-### 본사 관리
+### JWT 토큰 구조 예시
 
-```bash
-# 본사 회원가입
-POST /api/v1/headquarters/signup
+```json
 {
-  "companyName": "현대자동차",
-  "email": "admin@hyundai.com",
-  "password": "Hyundai123!",
-  "name": "김철수",
-  "department": "ESG팀",
-  "position": "팀장"
-}
-
-# 로그인
-POST /api/v1/headquarters/login
-{
-  "email": "admin@hyundai.com",
-  "password": "Hyundai123!"
-}
-```
-
-### 협력사 관리
-
-```bash
-# 협력사 생성 (UUID 기반)
-POST /api/v1/partners/create-by-uuid
-{
-  "uuid": "550e8400-e29b-41d4-a716-446655440000",
-  "contactPerson": "박영희",
-  "companyName": "현대모비스",
-  "address": "서울시 강남구"
-}
-
-# 협력사 목록 조회 (권한별)
-GET /api/v1/partners/accessible
-
-# 특정 협력사 조회
-GET /api/v1/partners/uuid/{uuid}
-```
-
-## 기술적 구현 포인트
-
-### 1. JWT 보안 구현
-
-- Access Token과 Refresh Token 분리
-- HttpOnly Cookie로 XSS 방어
-- SameSite=Strict로 CSRF 방어
-
-### 2. 계층적 권한 관리
-
-```java
-// TreePath를 이용한 권한 검증
-@Query("SELECT p FROM Partner p WHERE p.treePath LIKE CONCAT(:treePath, '%')")
-List<Partner> findAccessiblePartners(@Param("treePath") String treePath);
-```
-
-### 3. 자기참조 관계 매핑
-
-```java
-@Entity
-public class Partner {
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_partner_id")
-    private Partner parentPartner;
-
-    @OneToMany(mappedBy = "parentPartner")
-    private Set<Partner> childPartners = new HashSet<>();
+  "header": {
+    "alg": "HS512",
+    "typ": "JWT"
+  },
+  "payload": {
+    "sub": "2412161700",
+    "accountNumber": "2412161700", 
+    "companyName": "삼성전자",
+    "userType": "HEADQUARTERS",
+    "level": null,
+    "treePath": null,
+    "headquartersId": 1,
+    "partnerId": null,
+    "iat": 1640995200,
+    "exp": 1640998800
+  }
 }
 ```
 
-### 4. 비밀번호 보안
+### 보안 특징
 
-- BCrypt 암호화 (strength: 12)
-- 초기 비밀번호 강제 변경 시스템
-- 비밀번호 정책 검증
+1. **HttpOnly 쿠키**: XSS 공격 방지
+2. **Secure 플래그**: HTTPS 환경에서만 전송
+3. **SameSite=Strict**: CSRF 공격 방지
+4. **BCrypt 암호화**: 비밀번호 안전 저장 (strength 12)
+5. **토큰 만료**: Access Token 15분, Refresh Token 7일
 
 ## 데이터베이스 설계
 
-### Headquarters 테이블
-
-```sql
-CREATE TABLE headquarters (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    uuid VARCHAR(36) UNIQUE NOT NULL,
-    company_name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    department VARCHAR(100),
-    position VARCHAR(50),
-    phone VARCHAR(20),
-    address TEXT,
-    status VARCHAR(20) DEFAULT 'ACTIVE',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
+```mermaid
+erDiagram
+    headquarters {
+        bigint headquarters_id PK
+        varchar headquarters_uuid UK
+        varchar hq_account_number UK
+        varchar company_name
+        varchar email UK
+        varchar password
+        varchar name
+        varchar department
+        varchar position
+        varchar phone
+        text address
+        enum status
+        datetime created_at
+        datetime updated_at
+    }
+    
+    partners {
+        bigint partner_id PK
+        varchar partner_uuid UK
+        bigint headquarters_id FK
+        bigint parent_partner_id FK
+        varchar hq_account_number
+        varchar hierarchical_id
+        varchar company_name
+        varchar password
+        int level
+        varchar tree_path
+        enum status
+        boolean password_changed
+        datetime created_at
+        datetime updated_at
+    }
+    
+    headquarters ||--o{ partners : "관리"
+    partners ||--o{ par/tners : "상하위관계"
 ```
 
-### Partner 테이블
+## API 엔드포인트
 
-```sql
-CREATE TABLE partner (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    uuid VARCHAR(36) UNIQUE NOT NULL,
-    headquarters_id BIGINT NOT NULL,
-    parent_partner_id BIGINT,
-    company_name VARCHAR(255) NOT NULL,
-    email VARCHAR(255),
-    password VARCHAR(255) NOT NULL,
-    contact_person VARCHAR(100) NOT NULL,
-    address TEXT,
-    tree_path TEXT NOT NULL,
-    level INT NOT NULL,
-    status VARCHAR(20) DEFAULT 'PENDING',
-    is_initial_password BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (headquarters_id) REFERENCES headquarters(id),
-    FOREIGN KEY (parent_partner_id) REFERENCES partner(id)
-);
+### 본사 관리 API
+
+| Method | Endpoint | 설명 | 인증 |
+|--------|----------|------|------|
+| POST | `/api/v1/auth/headquarters/register` | 본사 회원가입 | 불필요 |
+| POST | `/api/v1/auth/headquarters/login` | 본사 로그인 | 불필요 |
+| POST | `/api/v1/auth/headquarters/logout` | 본사 로그아웃 | 불필요 |
+| GET | `/api/v1/auth/headquarters/me` | 현재 사용자 정보 | 필요 |
+| GET | `/api/v1/auth/headquarters/by-uuid/{uuid}` | UUID로 본사 조회 | 불필요 |
+| GET | `/api/v1/auth/headquarters/check-email` | 이메일 중복 확인 | 불필요 |
+
+### 협력사 관리 API
+
+| Method | Endpoint | 설명 | 인증 |
+|--------|----------|------|------|
+| POST | `/api/v1/auth/partners/create-by-uuid` | 협력사 생성 | 필요 |
+| POST | `/api/v1/auth/partners/login` | 협력사 로그인 | 불필요 |
+| POST | `/api/v1/auth/partners/logout` | 협력사 로그아웃 | 불필요 |
+| GET | `/api/v1/auth/partners/me` | 현재 사용자 정보 | 필요 |
+| GET | `/api/v1/auth/partners/tree` | 계층 구조 조회 | 필요 |
+| PUT | `/api/v1/auth/partners/initial-password` | 초기 비밀번호 변경 | 불필요 |
+
+## 핵심 구현 특징
+
+### 1. 계층적 ID 시스템
+
+- **본사**: `hqAccountNumber` (예: 2412161700)
+- **협력사**: `hqAccountNumber-hierarchicalId` (예: 2412161700-L1-001)
+
+### 2. TreePath 기반 권한 제어
+
+```
+본사: /1/
+1차: /1/L1-001/
+2차: /1/L1-001/L2-001/
+3차: /1/L1-001/L2-001/L3-001/
 ```
 
-## 실행 방법
+### 3. 불변성 보장 엔티티
 
-### 환경 설정
+모든 엔티티 수정은 새로운 객체 생성을 통해 불변성을 보장합니다.
 
-```bash
-# 환경 변수 설정
-export DB_URL=jdbc:mysql://localhost:3306/esg_auth
-export DB_USERNAME=root
-export DB_PASSWORD=your_password
-export JWT_SECRET=your-jwt-secret-key
-```
+## 성능 최적화
 
-### 애플리케이션 실행
+### 인덱스 전략
 
-```bash
-# 데이터베이스 생성
-mysql -u root -p -e "CREATE DATABASE esg_auth;"
+- `idx_headquarters_uuid`: UUID 기반 조회
+- `idx_tree_path`: 계층 구조 조회
+- `idx_hq_account_hierarchical`: 복합 인덱스로 로그인 성능 향상
 
-# 애플리케이션 실행
-./gradlew bootRun
+### 보안 최적화
 
-# API 문서 확인
-open http://localhost:8081/swagger-ui.html
-```
-
-## 테스트 시나리오
-
-### 1. 본사 계정 생성 및 로그인
-
-```bash
-# 본사 회원가입
-curl -X POST http://localhost:8081/api/v1/headquarters/signup \
-  -H "Content-Type: application/json" \
-  -d '{"companyName":"현대자동차","email":"admin@hyundai.com","password":"Hyundai123!","name":"김철수"}'
-
-# 로그인 (쿠키 저장)
-curl -X POST http://localhost:8081/api/v1/headquarters/login \
-  -H "Content-Type: application/json" \
-  -c cookies.txt \
-  -d '{"email":"admin@hyundai.com","password":"Hyundai123!"}'
-```
-
-### 2. 협력사 생성 및 관리
-
-```bash
-# 1차 협력사 생성
-curl -X POST http://localhost:8081/api/v1/partners/create-by-uuid \
-  -H "Content-Type: application/json" \
-  -b cookies.txt \
-  -d '{"uuid":"550e8400-e29b-41d4-a716-446655440000","contactPerson":"박영희","companyName":"현대모비스","address":"서울시"}'
-
-# 협력사 목록 조회
-curl -X GET http://localhost:8081/api/v1/partners/accessible \
-  -b cookies.txt
-```
-
-## 개발 환경
-
-- **IDE**: IntelliJ IDEA
-- **JDK**: OpenJDK 17
-- **Build Tool**: Gradle 8.x
-- **Database**: MySQL 8.0 (Local Development)
+- Connection Pool 최적화
+- JWT 토큰 크기 최소화
+- 세션 비활성화로 수평 확장 지원
 
 ---
 
-**주요 구현 특징**
-
-- JWT 기반 stateless 인증으로 확장성 확보
-- TreePath 알고리즘으로 효율적인 계층 권한 관리
-- Spring Security 커스터마이징으로 복잡한 권한 체계 구현
-- JPA 자기참조 관계로 무한 깊이 조직 구조 지원
+**기술적 성과**
+- 복잡한 계층적 조직 구조를 TreePath 알고리즘으로 효율적 구현
+- JWT + HttpOnly Cookie로 XSS/CSRF 방지하는 보안 아키텍처 설계
+- Spring Security 메서드 레벨 보안으로 세밀한 권한 제어 구현
+- 불변성 보장 엔티티 설계로 데이터 일관성 확보
