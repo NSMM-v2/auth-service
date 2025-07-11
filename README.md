@@ -250,7 +250,7 @@ erDiagram
     }
     
     headquarters ||--o{ partners : "관리"
-    partners ||--o{ par/tners : "상하위관계"
+    partners ||--o{ partners : "상하위관계"
 ```
 
 ## API 엔드포인트
