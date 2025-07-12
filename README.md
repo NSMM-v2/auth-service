@@ -16,12 +16,12 @@ Auth Service는 ESG 플랫폼의 **인증 및 인가를 담당하는 마이크�
 
 ### 기술 스택
 
-- **Framework**: Spring Boot 3.5.0
-- **Security**: Spring Security 6.x + JWT
-- **Database**: MySQL 8.0 + JPA/Hibernate
-- **Authentication**: JWT (Access/Refresh Token)
-- **Password Encryption**: BCrypt (strength 12)
-- **Documentation**: Swagger/OpenAPI 3.0
+[![Spring Boot](https://img.shields.io/badge/Framework-Spring%20Boot%203.5.0-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Spring Security](https://img.shields.io/badge/Security-Spring%20Security%206.x%20%2B%20JWT-red.svg)](https://spring.io/projects/spring-security)
+[![MySQL](https://img.shields.io/badge/Database-MySQL%208.0%20%2B%20JPA%2FHibernate-blue.svg)](https://www.mysql.com/)
+[![JWT](https://img.shields.io/badge/Authentication-JWT%20(Access%2FRefresh%20Token)-purple.svg)](https://jwt.io/)
+[![BCrypt](https://img.shields.io/badge/Password%20Encryption-BCrypt%20(strength%2012)-orange.svg)](https://en.wikipedia.org/wiki/Bcrypt)
+[![Swagger](https://img.shields.io/badge/Documentation-Swagger%2FOpenAPI%203.0-green.svg)](https://swagger.io/)
 
 ## 시스템 아키텍처
 
@@ -443,6 +443,3 @@ CREATE INDEX idx_tree_path ON partners(tree_path);
 - Spring Security 메서드 레벨 보안으로 세밀한 권한 제어 구현
 - 불변성 보장 엔티티 설계로 데이터 일관성 확보
 
-**개발자**: ESG Project Team  
-**버전**: 3.0  
-**최종 업데이트**: 2024-12-20
