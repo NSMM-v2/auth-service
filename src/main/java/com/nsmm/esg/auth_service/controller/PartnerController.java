@@ -466,6 +466,38 @@ public class PartnerController {
                 }
         }
 
+
+        /**
+         * UUID를 비즈니스 ID로 변환 (내부 서비스 전용, 인증 불필요)
+         * scope-service 등 마이크로서비스에서 사용
+         */
+        @GetMapping("/internal/uuid-to-business-id/{uuid}")
+        @Operation(summary = "UUID를 비즈니스 ID로 변환 (내부 서비스용)", description = "내부 서비스에서 협력사 UUID를 비즈니스 ID로 변환합니다. 인증 불필요.")
+        public ResponseEntity<ApiResponse<String>> getBusinessIdByUuidInternal(@PathVariable String uuid) {
+
+                log.info("UUID를 비즈니스 ID로 변환 요청 (내부): {}", uuid);
+
+                try {
+                        Partner partner = partnerService.findByUuid(uuid)
+                                        .orElseThrow(() -> new IllegalArgumentException(
+                                                        "존재하지 않는 협력사 UUID입니다: " + uuid));
+
+                        String businessId = partner.getPartnerId().toString();
+                        log.info("UUID {} → 비즈니스 ID {} 변환 완료 (내부)", uuid, businessId);
+
+                        return ResponseEntity.ok(ApiResponse.success(businessId, 
+                                        "UUID가 비즈니스 ID로 성공적으로 변환되었습니다."));
+                } catch (IllegalArgumentException e) {
+                        log.warn("UUID → 비즈니스 ID 변환 실패 (내부): {}", e.getMessage());
+                        return ResponseEntity.badRequest()
+                                        .body(ApiResponse.error(e.getMessage(), "UUID_NOT_FOUND"));
+                } catch (Exception e) {
+                        log.error("UUID → 비즈니스 ID 변환 중 오류 발생 (내부)", e);
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
+                }
+        }
+
         /**
          * UUID 중복 확인
          */

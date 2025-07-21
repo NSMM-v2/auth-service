@@ -73,6 +73,9 @@ public class SecurityConfig {
                                                                 "/api/v1/auth/partners/check-email",
                                                                 "/api/v1/auth/partners/check-uuid",
                                                                 "/api/v1/auth/partners/initial-password",
+                                                                
+                                                                // 내부 서비스 API (마이크로서비스 간 통신용)
+                                                                "/api/v1/auth/partners/internal/**",
 
                                                                 // 시스템 관련
                                                                 "/actuator/**",
