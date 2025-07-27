@@ -5,7 +5,6 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.License;
-import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.context.annotation.Bean;
@@ -14,14 +13,14 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
 /**
- * Swagger/OpenAPI 3 설정 - 쿠키 기반 JWT 인증만 지원
+ * Swagger/OpenAPI 3 설정 - 쿠키 기반 JWT 인증 지원 (선택적)
  * API 문서화 및 테스트 인터페이스 제공
  */
 @Configuration
 public class SwaggerConfig {
 
         /**
-         * OpenAPI 3 설정 - 쿠키 기반 인증만 지원
+         * OpenAPI 3 설정 - 쿠키 기반 인증 지원 (선택적)
          */
         @Bean
         public OpenAPI openAPI() {
@@ -31,9 +30,8 @@ public class SwaggerConfig {
                                                 new Server().url("http://localhost:8081").description("개발 서버"),
                                                 new Server().url("https://api.esg-project.com").description("운영 서버")))
                                 .components(new Components()
-                                                .addSecuritySchemes("JWT", cookieSecurityScheme()))
-                                .addSecurityItem(new SecurityRequirement()
-                                                .addList("JWT"));
+                                                .addSecuritySchemes("JWT", cookieSecurityScheme()));
+                                // 전역 보안 요구사항 제거 - 개별 API에서 필요시 @SecurityRequirement 사용
         }
 
         /**
@@ -42,7 +40,7 @@ public class SwaggerConfig {
         private Info apiInfo() {
                 return new Info()
                                 .title("ESG Project - Auth Service API")
-                                .description("ESG 프로젝트 인증 서비스 API 문서 (쿠키 기반 JWT 인증)")
+                                .description("ESG 프로젝트 인증 서비스 API 문서 (쿠키 기반 JWT 인증 선택적 지원)")
                                 .version("1.0.0")
                                 .contact(new Contact()
                                                 .name("ESG Project Team")
