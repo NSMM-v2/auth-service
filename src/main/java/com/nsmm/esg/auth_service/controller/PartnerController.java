@@ -9,10 +9,14 @@ import com.nsmm.esg.auth_service.dto.partner.PartnerLoginRequest;
 import com.nsmm.esg.auth_service.dto.partner.PartnerResponse;
 import com.nsmm.esg.auth_service.entity.Headquarters;
 import com.nsmm.esg.auth_service.entity.Partner;
+import com.nsmm.esg.auth_service.service.AuthMetricsService;
 import com.nsmm.esg.auth_service.service.HeadquartersService;
 import com.nsmm.esg.auth_service.service.PartnerService;
 import com.nsmm.esg.auth_service.util.JwtUtil;
 import com.nsmm.esg.auth_service.util.SecurityUtil;
+import io.micrometer.core.annotation.Counted;
+import io.micrometer.core.annotation.Timed;
+import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -51,6 +55,7 @@ public class PartnerController {
         private final HeadquartersService headquartersService;
         private final JwtUtil jwtUtil;
         private final SecurityUtil securityUtil;
+        private final AuthMetricsService authMetricsService;
 
         // JWT 쿠키 설정값 주입
         @Value("${jwt.cookie.secure:false}")
@@ -75,11 +80,15 @@ public class PartnerController {
         @Operation(summary = "협력사 생성 (DART API 기반)", description = "DART API에서 제공받은 회사 정보로 협력사를 생성합니다")
         @PreAuthorize("hasRole('HEADQUARTERS') or hasRole('PARTNER')")
         @SecurityRequirement(name = "JWT")
+        @Timed(value = "partner_creation_duration", description = "협력사 생성 처리 시간")
+        @Counted(value = "partner_creation_attempts", description = "협력사 생성 시도 횟수")
         public ResponseEntity<ApiResponse<PartnerCreateResponse>> createPartnerByUuid(
                         @Valid @RequestBody PartnerCreateRequest request) {
 
                 log.info("DART API 기반 협력사 생성 요청: UUID={}, 회사명={}, 상위UUID={}",
                                 request.getUuid(), request.getCompanyName(), request.getParentUuid());
+
+                Timer.Sample sample = authMetricsService.startPartnerCreationTimer();
 
                 try {
                         // JWT에서 현재 사용자 정보 추출
@@ -117,14 +126,23 @@ public class PartnerController {
 
                         PartnerCreateResponse response = PartnerCreateResponse.from(partner);
 
+                        // 협력사 생성 성공 메트릭 기록
+                        String level = partner.getLevel().toString();
+                        String creatorType = securityUtil.getCurrentUserType();
+                        authMetricsService.incrementPartnerCreations(level, creatorType);
+                        authMetricsService.recordPartnerCreationDuration(sample, level, "success");
+                        authMetricsService.incrementUserRegistrations("PARTNER");
+
                         return ResponseEntity.status(HttpStatus.CREATED)
                                         .body(ApiResponse.success(response, "DART API 기반 협력사가 성공적으로 생성되었습니다."));
                 } catch (IllegalArgumentException e) {
                         log.warn("DART API 기반 협력사 생성 실패: {}", e.getMessage());
+                        authMetricsService.recordPartnerCreationDuration(sample, "unknown", "failure");
                         return ResponseEntity.badRequest()
                                         .body(ApiResponse.error(e.getMessage(), "CREATE_FAILED"));
                 } catch (Exception e) {
                         log.error("DART API 기반 협력사 생성 중 오류 발생", e);
+                        authMetricsService.recordPartnerCreationDuration(sample, "unknown", "failure");
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                         .body(ApiResponse.error("서버 오류가 발생했습니다.", "INTERNAL_ERROR"));
                 }
@@ -137,12 +155,16 @@ public class PartnerController {
          */
         @PostMapping("/login")
         @Operation(summary = "협력사 로그인", description = "본사계정번호 + 협력사아이디 + 비밀번호로 로그인")
+        @Timed(value = "partner_login_duration", description = "협력사 로그인 처리 시간")
+        @Counted(value = "partner_login_attempts", description = "협력사 로그인 시도 횟수")
         public ResponseEntity<ApiResponse<TokenResponse>> login(
                         @Valid @RequestBody PartnerLoginRequest request,
                         HttpServletResponse response) {
 
                 log.info("협력사 로그인 요청: 본사계정번호={}, 협력사아이디={}",
                                 request.getHqAccountNumber(), request.getPartnerCode());
+
+                Timer.Sample sample = authMetricsService.startLoginTimer();
 
                 try {
                         // 협력사 인증 (새로운 방식)
@@ -183,9 +205,27 @@ public class PartnerController {
                         log.info("협력사 로그인 성공: 계정번호={}, 비밀번호변경여부={}",
                                         partner.getFullAccountNumber(), partner.getPasswordChanged());
 
+                        // 협력사 로그인 성공 메트릭 기록
+                        authMetricsService.incrementLoginAttempts("PARTNER", "success");
+                        authMetricsService.recordLoginDuration(sample, "PARTNER", "success");
+                        authMetricsService.incrementJwtOperations("issued", "access");
+                        authMetricsService.incrementJwtOperations("issued", "refresh");
+                        authMetricsService.incrementActivePartnerUsers();
+
+                        // 초기 비밀번호 상태 메트릭 기록
+                        if (!partner.getPasswordChanged()) {
+                                authMetricsService.incrementPasswordEvents("initial_login");
+                        }
+
                         return ResponseEntity.ok(ApiResponse.success(tokenResponse, "로그인이 성공적으로 완료되었습니다."));
                 } catch (Exception e) {
                         log.warn("협력사 로그인 실패: {}", e.getMessage());
+                        
+                        // 협력사 로그인 실패 메트릭 기록
+                        authMetricsService.incrementLoginAttempts("PARTNER", "failure");
+                        authMetricsService.recordLoginDuration(sample, "PARTNER", "failure");
+                        authMetricsService.incrementAuthFailures("invalid_credentials");
+                        
                         return ResponseEntity.badRequest()
                                         .body(ApiResponse.error(e.getMessage(), "LOGIN_FAILED"));
                 }
@@ -261,9 +301,13 @@ public class PartnerController {
         @Operation(summary = "접근 가능한 협력사 목록 조회", description = "권한에 따라 접근 가능한 협력사 목록을 조회합니다")
         @PreAuthorize("hasRole('HEADQUARTERS') or hasRole('PARTNER')")
         @SecurityRequirement(name = "JWT")
+        @Counted(value = "accessible_partners_queries", description = "접근 가능한 협력사 목록 조회 횟수")
         public ResponseEntity<ApiResponse<List<PartnerResponse>>> getAccessiblePartners() {
 
                 log.info("접근 가능한 협력사 목록 조회 요청");
+                
+                // 조직 조회 메트릭 기록
+                authMetricsService.incrementOrganizationQueries("accessible");
 
                 try {
                         String userType = securityUtil.getCurrentUserType();
@@ -420,12 +464,17 @@ public class PartnerController {
          */
         @PostMapping("/logout")
         @Operation(summary = "협력사 로그아웃", description = "JWT 쿠키를 삭제하여 로그아웃 처리")
+        @Counted(value = "partner_logout_attempts", description = "협력사 로그아웃 시도 횟수")
         public ResponseEntity<ApiResponse<String>> logout(HttpServletResponse response) {
 
                 log.info("협력사 로그아웃 요청");
 
                 // JWT 쿠키 삭제
                 clearJwtCookie(response);
+                
+                // 로그아웃 메트릭 기록
+                authMetricsService.incrementLogoutAttempts("PARTNER");
+                authMetricsService.decrementActivePartnerUsers();
 
                 return ResponseEntity.ok(ApiResponse.success("로그아웃 완료", "로그아웃이 성공적으로 완료되었습니다."));
         }
@@ -503,14 +552,21 @@ public class PartnerController {
          */
         @GetMapping("/check-uuid")
         @Operation(summary = "UUID 중복 확인", description = "협력사 생성 시 UUID 중복 여부 확인")
+        @Counted(value = "partner_uuid_validation_requests", description = "협력사 UUID 검증 요청 횟수")
         public ResponseEntity<ApiResponse<Boolean>> checkUuid(@RequestParam String uuid) {
 
                 try {
                         boolean isDuplicate = partnerService.isUuidDuplicate(uuid);
                         String message = isDuplicate ? "이미 사용 중인 UUID입니다." : "사용 가능한 UUID입니다.";
 
+                        // UUID 검증 메트릭 기록
+                        String result = isDuplicate ? "duplicate" : "valid";
+                        authMetricsService.incrementUuidValidations("partner", result);
+
                         return ResponseEntity.ok(ApiResponse.success(!isDuplicate, message));
                 } catch (IllegalArgumentException e) {
+                        // 잘못된 UUID 형식 메트릭 기록
+                        authMetricsService.incrementUuidValidations("partner", "invalid");
                         return ResponseEntity.badRequest()
                                         .body(ApiResponse.error("잘못된 UUID 형식입니다.", "INVALID_UUID"));
                 }

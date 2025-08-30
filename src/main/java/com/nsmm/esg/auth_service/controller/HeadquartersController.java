@@ -9,9 +9,13 @@ import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersSignupRequest;
 import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersSignupResponse;
 import com.nsmm.esg.auth_service.dto.headquarters.HeadquartersResponse;
 import com.nsmm.esg.auth_service.entity.Headquarters;
+import com.nsmm.esg.auth_service.service.AuthMetricsService;
 import com.nsmm.esg.auth_service.service.HeadquartersService;
 import com.nsmm.esg.auth_service.util.JwtUtil;
 import com.nsmm.esg.auth_service.util.SecurityUtil;
+import io.micrometer.core.annotation.Counted;
+import io.micrometer.core.annotation.Timed;
+import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -46,6 +50,7 @@ public class HeadquartersController {
         private final HeadquartersService headquartersService;
         private final JwtUtil jwtUtil;
         private final SecurityUtil securityUtil;
+        private final AuthMetricsService authMetricsService;
 
         // JWT 쿠키 설정값 주입
         @Value("${jwt.cookie.secure:false}")
@@ -63,22 +68,32 @@ public class HeadquartersController {
          */
         @PostMapping("/register")
         @Operation(summary = "본사 회원가입", description = "계정번호 및 UUID 자동 생성을 통한 본사 회원가입")
+        @Timed(value = "headquarters_registration_duration", description = "본사 회원가입 처리 시간")
+        @Counted(value = "headquarters_registration_attempts", description = "본사 회원가입 시도 횟수")
         public ResponseEntity<ApiResponse<HeadquartersSignupResponse>> register(
                         @Valid @RequestBody HeadquartersSignupRequest request) {
 
                 log.info("본사 회원가입 요청: 이메일={}", request.getEmail());
+                
+                Timer.Sample sample = authMetricsService.startRegistrationTimer();
 
                 try {
                         Headquarters headquarters = headquartersService.register(request);
                         HeadquartersSignupResponse response = HeadquartersSignupResponse.from(headquarters);
 
+                        // 회원가입 성공 메트릭 기록
+                        authMetricsService.incrementUserRegistrations("HEADQUARTERS");
+                        authMetricsService.recordRegistrationDuration(sample, "HEADQUARTERS", "success");
+
                         return ResponseEntity.ok(ApiResponse.success(response, "본사 회원가입이 성공적으로 완료되었습니다."));
                 } catch (IllegalArgumentException e) {
                         log.warn("본사 회원가입 실패: {}", e.getMessage());
+                        authMetricsService.recordRegistrationDuration(sample, "HEADQUARTERS", "failure");
                         return ResponseEntity.badRequest()
                                         .body(ApiResponse.error(e.getMessage(), "REGISTRATION_FAILED"));
                 } catch (IllegalStateException e) {
                         log.warn("본사 회원가입 실패 (시스템 제한): {}", e.getMessage());
+                        authMetricsService.recordRegistrationDuration(sample, "HEADQUARTERS", "failure");
                         return ResponseEntity.badRequest()
                                         .body(ApiResponse.error(e.getMessage(), "SYSTEM_LIMIT_EXCEEDED"));
                 }
@@ -90,11 +105,15 @@ public class HeadquartersController {
          */
         @PostMapping("/login")
         @Operation(summary = "본사 로그인", description = "이메일 기반 로그인 후 JWT 쿠키 설정")
+        @Timed(value = "headquarters_login_duration", description = "본사 로그인 처리 시간")
+        @Counted(value = "headquarters_login_attempts", description = "본사 로그인 시도 횟수")
         public ResponseEntity<ApiResponse<TokenResponse>> login(
                         @Valid @RequestBody HeadquartersLoginRequest request,
                         HttpServletResponse response) {
 
                 log.info("본사 로그인 요청: 이메일={}", request.getEmail());
+                
+                Timer.Sample sample = authMetricsService.startLoginTimer();
 
                 try {
                         // 본사 인증
@@ -130,9 +149,22 @@ public class HeadquartersController {
 
                         log.info("본사 로그인 성공: 계정번호={}", headquarters.getHqAccountNumber());
 
+                        // 로그인 성공 메트릭 기록
+                        authMetricsService.incrementLoginAttempts("HEADQUARTERS", "success");
+                        authMetricsService.recordLoginDuration(sample, "HEADQUARTERS", "success");
+                        authMetricsService.incrementJwtOperations("issued", "access");
+                        authMetricsService.incrementJwtOperations("issued", "refresh");
+                        authMetricsService.incrementActiveHeadquartersUsers();
+
                         return ResponseEntity.ok(ApiResponse.success(tokenResponse, "로그인이 성공적으로 완료되었습니다."));
                 } catch (Exception e) {
                         log.warn("본사 로그인 실패: {}", e.getMessage());
+                        
+                        // 로그인 실패 메트릭 기록
+                        authMetricsService.incrementLoginAttempts("HEADQUARTERS", "failure");
+                        authMetricsService.recordLoginDuration(sample, "HEADQUARTERS", "failure");
+                        authMetricsService.incrementAuthFailures("invalid_credentials");
+                        
                         return ResponseEntity.badRequest()
                                         .body(ApiResponse.error(e.getMessage(), "LOGIN_FAILED"));
                 }
@@ -144,12 +176,17 @@ public class HeadquartersController {
          */
         @PostMapping("/logout")
         @Operation(summary = "본사 로그아웃", description = "JWT 쿠키 삭제")
+        @Counted(value = "headquarters_logout_attempts", description = "본사 로그아웃 시도 횟수")
         public ResponseEntity<ApiResponse<String>> logout(HttpServletResponse response) {
 
                 log.info("본사 로그아웃 요청");
 
                 // JWT 쿠키 삭제
                 clearJwtCookie(response);
+                
+                // 로그아웃 메트릭 기록
+                authMetricsService.incrementLogoutAttempts("HEADQUARTERS");
+                authMetricsService.decrementActiveHeadquartersUsers();
 
                 return ResponseEntity.ok(ApiResponse.success("로그아웃 완료", "로그아웃이 성공적으로 완료되었습니다."));
         }
@@ -224,10 +261,15 @@ public class HeadquartersController {
          */
         @GetMapping("/check-email")
         @Operation(summary = "이메일 중복 확인", description = "회원가입 시 이메일 중복 여부 확인")
+        @Counted(value = "email_validation_requests", description = "이메일 검증 요청 횟수")
         public ResponseEntity<ApiResponse<Boolean>> checkEmail(@RequestParam String email) {
 
                 boolean isDuplicate = headquartersService.isEmailDuplicate(email);
                 String message = isDuplicate ? "이미 사용 중인 이메일입니다." : "사용 가능한 이메일입니다.";
+
+                // 이메일 검증 메트릭 기록
+                String result = isDuplicate ? "duplicate" : "available";
+                authMetricsService.incrementUuidValidations("email", result);
 
                 return ResponseEntity.ok(ApiResponse.success(!isDuplicate, message));
         }
@@ -237,14 +279,21 @@ public class HeadquartersController {
          */
         @GetMapping("/check-uuid")
         @Operation(summary = "UUID 중복 확인", description = "본사 생성 시 UUID 중복 여부 확인")
+        @Counted(value = "uuid_validation_requests", description = "UUID 검증 요청 횟수")
         public ResponseEntity<ApiResponse<Boolean>> checkUuid(@RequestParam String uuid) {
 
                 try {
                         boolean isDuplicate = headquartersService.isUuidDuplicate(uuid);
                         String message = isDuplicate ? "이미 사용 중인 UUID입니다." : "사용 가능한 UUID입니다.";
 
+                        // UUID 검증 메트릭 기록
+                        String result = isDuplicate ? "duplicate" : "valid";
+                        authMetricsService.incrementUuidValidations("headquarters", result);
+
                         return ResponseEntity.ok(ApiResponse.success(!isDuplicate, message));
                 } catch (IllegalArgumentException e) {
+                        // 잘못된 UUID 형식 메트릭 기록
+                        authMetricsService.incrementUuidValidations("headquarters", "invalid");
                         return ResponseEntity.badRequest()
                                         .body(ApiResponse.error("잘못된 UUID 형식입니다.", "INVALID_UUID"));
                 }
