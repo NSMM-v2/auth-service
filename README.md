@@ -435,11 +435,3 @@ CREATE INDEX idx_tree_path ON partners(tree_path);
 - **성능**: 인덱스 최적화 및 효율적인 권한 검증 알고리즘
 - **모니터링**: 상세한 로깅 및 예외 처리
 
----
-
-**기술적 성과**:
-- 복잡한 계층적 조직 구조를 TreePath 알고리즘으로 효율적 구현
-- JWT + HttpOnly Cookie로 XSS/CSRF 방지하는 보안 아키텍처 설계  
-- Spring Security 메서드 레벨 보안으로 세밀한 권한 제어 구현
-- 불변성 보장 엔티티 설계로 데이터 일관성 확보
-
