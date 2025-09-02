@@ -435,3 +435,4 @@ CREATE INDEX idx_tree_path ON partners(tree_path);
 - **성능**: 인덱스 최적화 및 효율적인 권한 검증 알고리즘
 - **모니터링**: 상세한 로깅 및 예외 처리
 
+---
